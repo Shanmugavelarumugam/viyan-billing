@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "823334033966",
+    "project_id": "viyan-billing",
+    "storage_bucket": "viyan-billing.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:823334033966:android:b3f8e8b7ffbe11fde0ddbf",
+        "android_client_info": {
+          "package_name": "com.example.billing"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCehrNNeVNw2PYElET1b8qp7SCicn-afI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
