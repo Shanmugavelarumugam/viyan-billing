@@ -1,17 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/services/firebase_auth_service.dart';
+import '../services/firebase_auth_service.dart';
+import '../../../data/repositories/auth_repository.dart';
 
 final firebaseAuthProvider = Provider((ref) => FirebaseAuthService());
+final authRepositoryProvider = Provider((ref) => AuthRepository(ref.watch(firebaseAuthProvider)));
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(firebaseAuthProvider));
+  return AuthNotifier(ref.watch(authRepositoryProvider));
 });
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  final FirebaseAuthService _authService;
+  final AuthRepository _authRepository;
 
-  AuthNotifier(this._authService) : super(AuthState.initial()) {
-    _authService.authStateChanges.listen((user) {
+  AuthNotifier(this._authRepository) : super(AuthState.initial()) {
+    _authRepository.authStateChanges.listen((user) {
       if (user != null) {
         state = state.copyWith(
           isAuthenticated: true,
@@ -27,8 +29,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> login(String email, String password) async {
     state = state.copyWith(isLoading: true);
     try {
-      await _authService.signInWithEmailAndPassword(email, password);
-      final user = _authService.currentUser;
+      await _authRepository.login(email, password);
+      final user = _authRepository.currentUser;
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -49,8 +51,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true);
     try {
-      await _authService.createUserWithEmailAndPassword(email, password);
-      await _authService.updateDisplayName(fullName);
+      await _authRepository.signup(email, password);
+      await _authRepository.updateDisplayName(fullName);
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -67,7 +69,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> resetPassword(String email) async {
     state = state.copyWith(isLoading: true);
     try {
-      await _authService.sendPasswordResetEmail(email);
+      await _authRepository.resetPassword(email);
       state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false);
@@ -76,7 +78,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await _authService.signOut();
+    await _authRepository.logout();
     state = AuthState.initial();
   }
 }

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../shop_setup/providers/shop_provider.dart';
-import '../../billing/providers/billing_provider.dart';
+import '../../../../data/repositories/storage_repository.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -260,7 +260,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       
                       // If a new local image was picked, upload it to Firebase Storage
                       if (_profilePhotoPath != null && !_profilePhotoPath!.startsWith('http')) {
-                        final storageService = ref.read(storageServiceProvider);
+                        final storageService = ref.read(storageRepositoryProvider);
                         final url = await storageService.uploadShopLogo(File(_profilePhotoPath!));
                         
                         if (url != null) {

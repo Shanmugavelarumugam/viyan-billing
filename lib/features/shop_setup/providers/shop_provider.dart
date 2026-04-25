@@ -2,10 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../data/models/shop_model.dart';
-import '../../../core/services/firestore_service.dart';
+import '../../../data/repositories/shop_repository.dart';
+import '../../../../data/repositories/firestore_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 
-final firestoreServiceProvider = Provider((ref) => FirestoreService());
+final shopRepositoryProvider = Provider((ref) {
+  final firestore = ref.watch(firestoreRepositoryProvider);
+  return ShopRepository(firestore);
+});
 
 class ShopState {
   final ShopModel? shop;
@@ -23,14 +27,14 @@ class ShopState {
 
 final shopProvider = StateNotifierProvider<ShopNotifier, ShopState>((ref) {
   final authState = ref.watch(authProvider);
-  return ShopNotifier(ref.watch(firestoreServiceProvider), authState.isAuthenticated);
+  return ShopNotifier(ref.watch(shopRepositoryProvider), authState.isAuthenticated);
 });
 
 class ShopNotifier extends StateNotifier<ShopState> {
-  final FirestoreService _firestoreService;
+  final ShopRepository _shopRepository;
   final bool isAuthenticated;
 
-  ShopNotifier(this._firestoreService, this.isAuthenticated) : super(ShopState()) {
+  ShopNotifier(this._shopRepository, this.isAuthenticated) : super(ShopState()) {
     if (isAuthenticated) {
       _loadShop();
     } else {
@@ -55,7 +59,7 @@ class ShopNotifier extends StateNotifier<ShopState> {
     // Always attempt to sync with latest from cloud on startup
     try {
       debugPrint("☁️ Attempting to fetch shop from cloud...");
-      final cloudShop = await _firestoreService.getShopProfile();
+      final cloudShop = await _shopRepository.getShopProfile();
       if (!mounted) return;
 
       if (cloudShop != null) {
@@ -92,7 +96,7 @@ class ShopNotifier extends StateNotifier<ShopState> {
     
     // Sync with Firestore (Try-catch to handle offline or configuration issues)
     try {
-      await _firestoreService.saveShopProfile(shop);
+      await _shopRepository.saveShopProfile(shop);
     } catch (e) {
       debugPrint("⚠️ Firestore sync failed: ${e.toString()}");
     }

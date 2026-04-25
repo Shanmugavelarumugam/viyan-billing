@@ -4,8 +4,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
-import '../../../core/services/whatsapp_service.dart';
+import '../../billing/services/whatsapp_service.dart';
 import '../../shop_setup/providers/shop_provider.dart';
+import '../../../../data/repositories/firestore_repository.dart';
 import '../../../data/models/order_model.dart';
 import '../widgets/daily_sales_chart.dart';
 
@@ -56,7 +57,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     setState(() => _isSyncing = true);
     try {
       final cloudOrders = await ref
-          .read(firestoreServiceProvider)
+          .read(firestoreRepositoryProvider)
           .getOrdersOnce();
       if (!mounted) return;
       if (cloudOrders.isNotEmpty) {

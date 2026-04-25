@@ -11,7 +11,7 @@ import '../../../data/models/item_model.dart';
 import '../../../data/models/shop_model.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
-import '../../../core/services/voice_billing_service.dart';
+import '../services/voice_billing_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 

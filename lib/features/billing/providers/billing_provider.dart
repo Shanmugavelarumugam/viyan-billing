@@ -1,21 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../data/models/item_model.dart';
-import '../../../core/services/firestore_service.dart';
-import '../../../core/services/storage_service.dart';
-import '../../shop_setup/providers/shop_provider.dart';
+import '../../../data/repositories/billing_repository.dart';
+import '../../../../data/repositories/firestore_repository.dart';
+import '../../../../data/repositories/storage_repository.dart';
 
-final storageServiceProvider = Provider((ref) => StorageService());
+final billingRepositoryProvider = Provider((ref) {
+  final firestore = ref.watch(firestoreRepositoryProvider);
+  final storage = ref.watch(storageRepositoryProvider);
+  return BillingRepository(firestore, storage);
+});
 
 final itemsProvider = StateNotifierProvider<ItemsNotifier, List<ItemModel>>((ref) {
-  final firestoreService = ref.watch(firestoreServiceProvider);
-  return ItemsNotifier(firestoreService);
+  final billingRepo = ref.watch(billingRepositoryProvider);
+  return ItemsNotifier(billingRepo);
 });
 
 class ItemsNotifier extends StateNotifier<List<ItemModel>> {
-  final FirestoreService _firestoreService;
+  final BillingRepository _billingRepository;
   
-  ItemsNotifier(this._firestoreService) : super([]) {
+  ItemsNotifier(this._billingRepository) : super([]) {
     loadItems();
   }
 
@@ -31,7 +35,7 @@ class ItemsNotifier extends StateNotifier<List<ItemModel>> {
 
   Future<void> syncWithCloud() async {
     try {
-      final cloudItems = await _firestoreService.getItemsOnce();
+      final cloudItems = await _billingRepository.getItems();
       if (cloudItems.isNotEmpty) {
         final box = Hive.box<ItemModel>('items_box');
         await box.clear();
@@ -51,7 +55,7 @@ class ItemsNotifier extends StateNotifier<List<ItemModel>> {
     
     // Sync with Firestore
     try {
-      await _firestoreService.saveItem(item);
+      await _billingRepository.saveItem(item);
     } catch (e) {
       // Offline or error - local is still updated
     }
@@ -65,7 +69,7 @@ class ItemsNotifier extends StateNotifier<List<ItemModel>> {
     
     // Sync with Firestore
     try {
-      await _firestoreService.saveItem(item);
+      await _billingRepository.saveItem(item);
     } catch (e) {
       // Fallback
     }
@@ -79,7 +83,7 @@ class ItemsNotifier extends StateNotifier<List<ItemModel>> {
     
     // Sync with Firestore
     try {
-      await _firestoreService.deleteItem(id);
+      await _billingRepository.deleteItem(id);
     } catch (e) {
       // Fallback
     }

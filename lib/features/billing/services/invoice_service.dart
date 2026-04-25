@@ -3,9 +3,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
-import '../../data/models/item_model.dart';
-import '../../data/models/shop_model.dart';
-import '../../data/models/order_model.dart';
+import '../../../../data/models/item_model.dart';
+import '../../../../data/models/shop_model.dart';
+import '../../../../data/models/order_model.dart';
 
 class InvoiceService {
   static Future<File> generateInvoice({

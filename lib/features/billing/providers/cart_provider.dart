@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import '../../../data/models/item_model.dart';
 import '../../../data/models/order_model.dart';
-import '../../../core/services/firestore_service.dart';
+import '../../../data/repositories/billing_repository.dart';
 import '../../shop_setup/providers/shop_provider.dart';
+import 'billing_provider.dart';
+import 'package:hive/hive.dart';
 
 class CartBill {
   final String id;
@@ -59,15 +60,15 @@ class ActiveBillsState {
 }
 
 final cartProvider = StateNotifierProvider<ActiveBillsNotifier, ActiveBillsState>((ref) {
-  final firestoreService = ref.watch(firestoreServiceProvider);
-  return ActiveBillsNotifier(ref, firestoreService);
+  final billingRepo = ref.watch(billingRepositoryProvider);
+  return ActiveBillsNotifier(ref, billingRepo);
 });
 
 class ActiveBillsNotifier extends StateNotifier<ActiveBillsState> {
   final Ref ref;
-  final FirestoreService _firestoreService;
+  final BillingRepository _billingRepository;
   
-  ActiveBillsNotifier(this.ref, this._firestoreService) : super(_initialState()) {
+  ActiveBillsNotifier(this.ref, this._billingRepository) : super(_initialState()) {
     _init();
     
     // Listen for manual token resets from the Profile screen to update UI immediately
@@ -235,7 +236,7 @@ class ActiveBillsNotifier extends StateNotifier<ActiveBillsState> {
 
     // Sync with Firestore
     try {
-      await _firestoreService.saveOrder(order);
+      await _billingRepository.saveOrder(order);
     } catch (e) {
       // Local remains safe
     }

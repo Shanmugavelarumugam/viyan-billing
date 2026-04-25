@@ -7,9 +7,9 @@ import '../../shop_setup/providers/shop_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
-import '../../../core/services/subscription_service.dart';
+import '../../subscription/services/subscription_service.dart';
+import '../../billing/services/whatsapp_service.dart';
 import '../../../data/models/shop_model.dart';
-import '../../../core/services/whatsapp_service.dart';
 import '../../billing/providers/cart_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {

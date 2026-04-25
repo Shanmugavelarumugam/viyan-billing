@@ -23,7 +23,7 @@ import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/billing/providers/cart_provider.dart';
 import '../../features/billing/screens/checkout_screen.dart';
-import '../../core/services/subscription_service.dart';
+import '../../features/subscription/services/subscription_service.dart';
 
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();

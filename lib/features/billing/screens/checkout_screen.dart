@@ -8,7 +8,7 @@ import '../../shop_setup/providers/shop_provider.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/shop_model.dart';
-import '../../../core/services/whatsapp_service.dart';
+import '../services/whatsapp_service.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});

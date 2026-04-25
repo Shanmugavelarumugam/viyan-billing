@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../data/models/shop_model.dart';
-import '../../data/models/item_model.dart';
-import '../../data/models/order_model.dart';
+import '../models/shop_model.dart';
+import '../models/item_model.dart';
+import '../models/order_model.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class FirestoreService {
+final firestoreRepositoryProvider = Provider((ref) => FirestoreRepository());
+
+class FirestoreRepository {
 
   // Check if Firebase is initialized safely
   bool get isInitialized {

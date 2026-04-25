@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../data/models/item_model.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
+import '../../../../data/repositories/storage_repository.dart';
 import '../../billing/providers/billing_provider.dart';
 
 class ItemsScreen extends ConsumerStatefulWidget {
@@ -599,7 +600,7 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                               // If a new image was picked, upload it
                               if (selectedImageFile != null) {
                                 final bytes = await selectedImageFile!.readAsBytes();
-                                final url = await ref.read(storageServiceProvider).uploadItemImage(
+                                final url = await ref.read(storageRepositoryProvider).uploadItemImage(
                                   bytes, 
                                   itemId
                                 );
