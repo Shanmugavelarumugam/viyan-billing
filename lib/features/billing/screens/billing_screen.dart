@@ -26,6 +26,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
     with SingleTickerProviderStateMixin {
   String _selectedCategory = 'All';
   final _phoneController = TextEditingController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -76,6 +77,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
     ];
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDrawer(context, shop, l10n),
       backgroundColor: const Color(0xFFF8FAFC),
       body: Container(
         decoration: BoxDecoration(
@@ -217,16 +220,30 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _primaryColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.store_rounded,
-                  color: _primaryColor,
-                  size: 28,
+              GestureDetector(
+                onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _primaryColor.withValues(alpha: 0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(
+                      color: _primaryColor.withValues(alpha: 0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.notes_rounded,
+                    color: _primaryColor,
+                    size: 24,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -267,24 +284,6 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                       ),
                     ),
                   ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _primaryColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  selectedBill.name,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryColor,
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -911,6 +910,168 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, ShopModel? shop, AppLocalizations? l10n) {
+    return Drawer(
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      child: Column(
+        children: [
+          _buildDrawerHeader(shop),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              children: [
+                _buildDrawerItem(
+                  icon: Icons.receipt_long_rounded,
+                  label: l10n?.translate('billing') ?? 'Billing',
+                  onTap: () {
+                    Navigator.pop(context);
+                  },
+                  isSelected: true,
+                ),
+                _buildDrawerItem(
+                  icon: Icons.bar_chart_rounded,
+                  label: l10n?.translate('reports') ?? 'Reports',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/reports');
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.inventory_2_rounded,
+                  label: l10n?.translate('items') ?? 'Items',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/items');
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.person_rounded,
+                  label: l10n?.translate('profile') ?? 'Profile',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/profile');
+                  },
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(),
+                ),
+                _buildDrawerItem(
+                  icon: Icons.settings_rounded,
+                  label: 'Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/profile/edit');
+                  },
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Viyan Billing v1.0.0',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerHeader(ShopModel? shop) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(24, 60 + MediaQuery.paddingOf(context).top, 24, 24),
+      decoration: BoxDecoration(
+        color: _primaryColor.withValues(alpha: 0.05),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.store_rounded,
+              color: _primaryColor,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            shop?.name ?? 'Your Shop',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            shop?.address ?? 'Store Address',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isSelected = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: onTap,
+        leading: Icon(
+          icon,
+          color: isSelected ? _primaryColor : Colors.grey[600],
+          size: 22,
+        ),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? _primaryColor : const Color(0xFF1E293B),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 15,
+          ),
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        tileColor: isSelected ? _primaryColor.withValues(alpha: 0.1) : Colors.transparent,
       ),
     );
   }
