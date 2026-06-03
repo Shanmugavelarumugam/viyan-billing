@@ -24,13 +24,14 @@ class ItemModelAdapter extends TypeAdapter<ItemModel> {
       isAvailable: fields[4] as bool,
       imageUrl: fields[5] as String?,
       costPrice: fields[6] as double?,
+      barcode: fields[7] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ItemModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class ItemModelAdapter extends TypeAdapter<ItemModel> {
       ..writeByte(5)
       ..write(obj.imageUrl)
       ..writeByte(6)
-      ..write(obj.costPrice);
+      ..write(obj.costPrice)
+      ..writeByte(7)
+      ..write(obj.barcode);
   }
 
   @override

@@ -25,6 +25,9 @@ class ItemModel extends HiveObject {
   @HiveField(6)
   final double? costPrice;
 
+  @HiveField(7)
+  final String? barcode;
+
   ItemModel({
     required this.id,
     required this.name,
@@ -33,6 +36,7 @@ class ItemModel extends HiveObject {
     this.isAvailable = true,
     this.imageUrl,
     this.costPrice,
+    this.barcode,
   });
 
   ItemModel copyWith({
@@ -43,6 +47,7 @@ class ItemModel extends HiveObject {
     bool? isAvailable,
     String? imageUrl,
     double? costPrice,
+    String? barcode,
   }) {
     return ItemModel(
       id: id ?? this.id,
@@ -52,6 +57,7 @@ class ItemModel extends HiveObject {
       isAvailable: isAvailable ?? this.isAvailable,
       imageUrl: imageUrl ?? this.imageUrl,
       costPrice: costPrice ?? this.costPrice,
+      barcode: barcode ?? this.barcode,
     );
   }
 }

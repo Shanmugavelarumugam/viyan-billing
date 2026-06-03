@@ -14,6 +14,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../services/voice_billing_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class BillingScreen extends ConsumerStatefulWidget {
   const BillingScreen({super.key});
@@ -284,6 +285,22 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showBarcodeScannerSheet(context, ref, l10n),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: _primaryColor,
+                    size: 18,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1321,4 +1338,675 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
           Icon(Icons.restaurant_rounded, color: _primaryColor, size: size),
     );
   }
+
+  // --- BARCODE SCANNING & QUICK ADD CHEKOUT IMPLEMENTATION ---
+
+  void _showBarcodeScannerSheet(BuildContext context, WidgetRef ref, l10n) {
+    bool isCameraMode = true;
+    final barcodeManualController = TextEditingController();
+    final availableItems = ref.read(itemsProvider);
+    final itemsWithBarcodes = availableItems.where((i) => i.barcode != null && i.barcode!.isNotEmpty).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.qr_code_scanner_rounded, color: _primaryColor, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'BARCODE SCANNER',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close_rounded, color: Colors.grey[400]),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Premium Mode Selector Tabs
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setSheetState(() => isCameraMode = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isCameraMode ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: isCameraMode
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.camera_alt_rounded,
+                                      size: 16,
+                                      color: isCameraMode ? _primaryColor : Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Live Camera',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: isCameraMode ? _primaryColor : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setSheetState(() => isCameraMode = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: !isCameraMode ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: !isCameraMode
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.devices_rounded,
+                                      size: 16,
+                                      color: !isCameraMode ? _primaryColor : Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Simulator / Test',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: !isCameraMode ? _primaryColor : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: isCameraMode
+                        ? Column(
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 24),
+                                height: 260,
+                                decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.1),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Stack(
+                                    children: [
+                                      MobileScanner(
+                                        fit: BoxFit.cover,
+                                        onDetect: (capture) {
+                                          final List<Barcode> barcodes = capture.barcodes;
+                                          if (barcodes.isNotEmpty) {
+                                            final String? code = barcodes.first.rawValue;
+                                            if (code != null && code.isNotEmpty) {
+                                              HapticFeedback.heavyImpact();
+                                              Navigator.pop(context);
+                                              _onBarcodeDetected(context, ref, code, l10n);
+                                            }
+                                          }
+                                        },
+                                      ),
+                                      // Premium scanning frame target overlay
+                                      Center(
+                                        child: Container(
+                                          width: 200,
+                                          height: 140,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: _primaryColor, width: 3),
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Stack(
+                                            children: [
+                                              // Decorative corner highlights
+                                              Positioned(
+                                                top: 10,
+                                                left: 10,
+                                                right: 10,
+                                                bottom: 10,
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    border: Border.all(
+                                                      color: Colors.white.withValues(alpha: 0.3),
+                                                      width: 1,
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 12,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.6),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.flash_on_rounded, color: Colors.white, size: 16),
+                                                SizedBox(width: 6),
+                                                Text(
+                                                  'Align barcode inside frame',
+                                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'Trouble using camera?',
+                                style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                              ),
+                              TextButton(
+                                onPressed: () => setSheetState(() => isCameraMode = false),
+                                child: Text('Switch to Simulator / Manual Input', style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // manual textfield input
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.grey[200]!),
+                                  ),
+                                  child: TextField(
+                                    controller: barcodeManualController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter Barcode number (e.g. 8901725181223)',
+                                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                                      prefixIcon: Icon(Icons.qr_code_rounded, color: Colors.grey[400]),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(Icons.arrow_forward_rounded, color: _primaryColor),
+                                        onPressed: () {
+                                          final val = barcodeManualController.text.trim();
+                                          if (val.isNotEmpty) {
+                                            Navigator.pop(context);
+                                            _onBarcodeDetected(context, ref, val, l10n);
+                                          }
+                                        },
+                                      ),
+                                      border: InputBorder.none,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                    ),
+                                    onSubmitted: (val) {
+                                      final code = val.trim();
+                                      if (code.isNotEmpty) {
+                                        Navigator.pop(context);
+                                        _onBarcodeDetected(context, ref, code, l10n);
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                const Text(
+                                  'DEMO SIMULATION SHORTCUTS',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF64748B),
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                // Instant Hide & Seek demo button
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Colors.orange.shade50, Colors.orange.shade100.withValues(alpha: 0.3)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.orange.shade200),
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    leading: CircleAvatar(
+                                      backgroundColor: Colors.orange,
+                                      child: const Icon(Icons.cookie_rounded, color: Colors.white),
+                                    ),
+                                    title: const Text(
+                                      'Hide & Seek Biscuits',
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                                    ),
+                                    subtitle: const Text(
+                                      'Simulate scanning unregistered biscuits\nBarcode: 8901725181223',
+                                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                                    ),
+                                    trailing: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text(
+                                        'SCAN',
+                                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      _onBarcodeDetected(context, ref, '8901725181223', l10n);
+                                    },
+                                  ),
+                                ),
+                                // Existing catalog items shortcuts
+                                if (itemsWithBarcodes.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'SCAN FROM ACTIVE CATALOG',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF64748B),
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ...itemsWithBarcodes.map((item) => Container(
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: Colors.grey[200]!),
+                                        ),
+                                        child: ListTile(
+                                          dense: true,
+                                          title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                          subtitle: Text('Barcode: ${item.barcode} • ₹${item.price.toStringAsFixed(0)}'),
+                                          trailing: Icon(Icons.qr_code_rounded, color: _primaryColor),
+                                          onTap: () {
+                                            Navigator.pop(context);
+                                            _onBarcodeDetected(context, ref, item.barcode!, l10n);
+                                          },
+                                        ),
+                                      )),
+                                ],
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _onBarcodeDetected(BuildContext context, WidgetRef ref, String barcode, l10n) {
+    final availableItems = ref.read(itemsProvider);
+    
+    // Check if the barcode matches any existing item
+    final matchedItem = availableItems.firstWhere(
+      (item) => item.barcode == barcode,
+      orElse: () => ItemModel(id: '', name: '', price: 0, isAvailable: false),
+    );
+
+    if (matchedItem.id.isNotEmpty) {
+      // SUCCESS: Item exists, add to cart
+      HapticFeedback.mediumImpact();
+      ref.read(cartProvider.notifier).addItem(matchedItem);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white),
+              const SizedBox(width: 8),
+              Text('Added ${matchedItem.name} to checkout (₹${matchedItem.price.toStringAsFixed(0)})'),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // QUICK ADD: Item does not exist. Show the Quick Add bottom sheet.
+      _showQuickAddItemSheet(context, ref, barcode, l10n);
+    }
+  }
+
+  void _showQuickAddItemSheet(BuildContext context, WidgetRef ref, String barcode, l10n) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final nameController = TextEditingController();
+    
+    // If it's our Hide & Seek demo barcode, pre-fill it for a premium, magical experience!
+    if (barcode == '8901725181223') {
+      nameController.text = 'Hide & Seek Biscuits';
+    }
+
+    final priceController = TextEditingController();
+    final categoryController = TextEditingController(text: 'Snacks');
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.add_shopping_cart_rounded,
+                                  color: Colors.orange,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Quick Register Product',
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(Icons.close_rounded, color: Colors.grey[400]),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.qr_code_scanner_rounded, color: Colors.amber, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Barcode "$barcode" is not in items database. Quick register to add it to checkout!',
+                                style: TextStyle(color: Colors.amber.shade900, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      _buildDialogTextField(
+                        controller: nameController,
+                        label: 'Product Name',
+                        icon: Icons.title_rounded,
+                        primaryColor: primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      _buildDialogTextField(
+                        controller: priceController,
+                        label: 'Selling Price (₹)',
+                        icon: Icons.payments_rounded,
+                        keyboardType: TextInputType.number,
+                        primaryColor: primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      _buildDialogTextField(
+                        controller: categoryController,
+                        label: 'Category (Optional)',
+                        icon: Icons.category_rounded,
+                        primaryColor: primaryColor,
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      ElevatedButton(
+                        onPressed: isSaving ? null : () async {
+                          final name = nameController.text.trim();
+                          final price = double.tryParse(priceController.text.trim()) ?? 0;
+                          
+                          if (name.isNotEmpty && price > 0) {
+                            setModalState(() => isSaving = true);
+                            
+                            final itemId = DateTime.now().millisecondsSinceEpoch.toString();
+                            
+                            final newItem = ItemModel(
+                              id: itemId,
+                              name: name,
+                              price: price,
+                              category: categoryController.text.isNotEmpty ? categoryController.text.trim() : null,
+                              isAvailable: true,
+                              barcode: barcode,
+                            );
+
+                            // Save item to inventory catalog database
+                            await ref.read(itemsProvider.notifier).addItem(newItem);
+                            // Add item to checkout cart immediately
+                            ref.read(cartProvider.notifier).addItem(newItem);
+                            
+                            HapticFeedback.heavyImpact();
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle_rounded, color: Colors.white),
+                                      const SizedBox(width: 8),
+                                      Text('Successfully registered and added $name!'),
+                                    ],
+                                  ),
+                                  backgroundColor: const Color(0xFF10B981),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          } else {
+                            HapticFeedback.vibrate();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 52),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          elevation: 0,
+                        ),
+                        child: isSaving 
+                            ? const SizedBox(
+                                height: 20, 
+                                width: 20, 
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                              )
+                            : const Text(
+                                'REGISTER & ADD TO CHECKOUT',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDialogTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required Color primaryColor,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[100]!),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey[500], fontSize: 13),
+          prefixIcon: Icon(icon, size: 20, color: Colors.grey[500]),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+      ),
+    );
+  }
 }
+

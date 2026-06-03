@@ -412,6 +412,7 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
     final nameController = TextEditingController(text: item?.name);
     final priceController = TextEditingController(text: item?.price.toStringAsFixed(0));
     final categoryController = TextEditingController(text: item?.category);
+    final barcodeController = TextEditingController(text: item?.barcode);
     String? currentImageUrl = item?.imageUrl;
     bool available = item?.isAvailable ?? true;
 
@@ -562,6 +563,14 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                           primaryColor: primaryColor,
                         ),
                         const SizedBox(height: 16),
+
+                        _buildDialogTextField(
+                          controller: barcodeController,
+                          label: 'Barcode (Optional)',
+                          icon: Icons.qr_code_rounded,
+                          primaryColor: primaryColor,
+                        ),
+                        const SizedBox(height: 16),
                         
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -617,6 +626,7 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                                 imageUrl: finalImageUrl,
                                 isAvailable: available,
                                 costPrice: item?.costPrice,
+                                barcode: barcodeController.text.isNotEmpty ? barcodeController.text : null,
                               );
 
                               if (item == null) {
