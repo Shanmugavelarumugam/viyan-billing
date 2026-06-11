@@ -10,6 +10,14 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   void checkStatus() {
     // In a real app, verify with backend API
   }
+
+  void renewPlan(String planName, int days) {
+    state = SubscriptionState(
+      isActive: true,
+      expiryDate: DateTime.now().add(Duration(days: days)),
+      planName: planName,
+    );
+  }
 }
 
 class SubscriptionState {

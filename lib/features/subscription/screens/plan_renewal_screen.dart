@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
+import '../../../core/services/razorpay_service.dart';
+import '../services/subscription_service.dart';
 
 class PlanRenewalScreen extends ConsumerStatefulWidget {
   const PlanRenewalScreen({super.key});
@@ -18,6 +21,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
   String _selectedPlan = 'basic';
+  late RazorpayService _razorpayService;
 
   @override
   void initState() {
@@ -33,11 +37,79 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
     _animationController.forward();
+
+    _razorpayService = RazorpayService(
+      onSuccess: _handlePaymentSuccess,
+      onFailure: _handlePaymentFailure,
+    );
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    ref.read(subscriptionProvider.notifier).renewPlan(
+      _selectedPlan == 'basic' ? 'Basic Plan' : 'Pro Plan',
+      30,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('✅ Subscription Active! Payment ID: ${response.paymentId}'),
+              ),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      context.go('/');
+    }
+  }
+
+  void _handlePaymentFailure(PaymentFailureResponse response) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.error_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('❌ Payment Failed: ${response.message ?? "Unknown error"}'),
+              ),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _razorpayService.dispose();
     super.dispose();
   }
 
@@ -619,8 +691,24 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                 ),
               ElevatedButton(
                 onPressed: () {
-                  // Handle payment
                   HapticFeedback.mediumImpact();
+                  if (isEnterprise) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Calling enterprise support...'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  } else {
+                    _razorpayService.openCheckout(
+                      key: 'rzp_live_StUZupmMw4H4yc',
+                      amount: selectedPrice.toDouble(),
+                      name: 'Subscription Renewal',
+                      description: 'Renewal for ${_selectedPlan.toUpperCase()} Plan',
+                      contact: '9999999999',
+                      email: 'billing@viyan.com',
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,

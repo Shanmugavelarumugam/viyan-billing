@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../providers/cart_provider.dart';
 import '../../shop_setup/providers/shop_provider.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/shop_model.dart';
 import '../services/whatsapp_service.dart';
+import '../../../core/services/razorpay_service.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -26,6 +28,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
+  late RazorpayService _razorpayService;
 
   @override
   void initState() {
@@ -48,6 +51,71 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
     _animationController.forward();
+
+    _razorpayService = RazorpayService(
+      onSuccess: _handlePaymentSuccess,
+      onFailure: _handlePaymentFailure,
+    );
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    final token = ref.read(tokenProvider);
+    ref.read(cartProvider.notifier).completeBill(
+          paymentMethod: 'Razorpay',
+          phone: _phoneController.text.trim(),
+        );
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Text('✅ Payment Success! Token #$token completed'),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _handlePaymentFailure(PaymentFailureResponse response) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.error_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('❌ Payment Failed: ${response.message ?? "Unknown error"}'),
+              ),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
@@ -55,6 +123,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     _phoneController.dispose();
     _nameController.dispose();
     _animationController.dispose();
+    _razorpayService.dispose();
     super.dispose();
   }
 
@@ -523,7 +592,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                     color: Colors.green,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _buildPaymentOption(
                     title: 'UPI',
@@ -536,6 +605,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                       });
                     },
                     color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildPaymentOption(
+                    title: 'Razorpay',
+                    icon: Icons.payment_rounded,
+                    isSelected: _selectedPaymentMethod == 'razorpay',
+                    onTap: () {
+                      setState(() {
+                        _selectedPaymentMethod = 'razorpay';
+                        _showQR = false;
+                      });
+                    },
+                    color: Colors.purple,
                   ),
                 ),
               ],
@@ -886,36 +970,49 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                     child: ElevatedButton(
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        ref
-                            .read(cartProvider.notifier)
-                            .completeBill(
-                              paymentMethod: _selectedPaymentMethod == 'cash'
-                                  ? 'Cash'
-                                  : 'UPI',
-                              phone: _phoneController.text.trim(),
-                            );
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Row(
-                              children: [
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Text('✅ Token #$token completed'),
-                              ],
+                        if (_selectedPaymentMethod == 'razorpay') {
+                          _razorpayService.openCheckout(
+                            key: 'rzp_live_StUZupmMw4H4yc',
+                            amount: bill.total,
+                            name: shop?.name ?? 'Billing App',
+                            description: 'Payment for Token #$token',
+                            contact: _phoneController.text.trim().isNotEmpty
+                                ? _phoneController.text.trim()
+                                : '9999999999',
+                            email: 'customer@example.com',
+                          );
+                        } else {
+                          ref
+                              .read(cartProvider.notifier)
+                              .completeBill(
+                                paymentMethod: _selectedPaymentMethod == 'cash'
+                                    ? 'Cash'
+                                    : 'UPI',
+                                phone: _phoneController.text.trim(),
+                              );
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text('✅ Token #$token completed'),
+                                ],
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              backgroundColor: Colors.green,
+                              duration: const Duration(seconds: 2),
                             ),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            backgroundColor: Colors.green,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
+                          );
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
