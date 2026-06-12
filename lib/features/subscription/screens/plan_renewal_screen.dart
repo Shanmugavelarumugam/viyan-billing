@@ -20,7 +20,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
-  String _selectedPlan = 'basic';
+  String _selectedPlan = 'pro'; // Default to Pro as it is recommended/popular
   late RazorpayService _razorpayService;
 
   @override
@@ -28,12 +28,12 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
     _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-    _slideAnimation = Tween<double>(begin: 0.95, end: 1).animate(
+    _slideAnimation = Tween<double>(begin: 0.96, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
     _animationController.forward();
@@ -122,6 +122,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: Container(
@@ -130,8 +131,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              primaryColor.withValues(alpha: 0.03),
-              Colors.white,
+              primaryColor.withValues(alpha: 0.02),
               Colors.white,
             ],
           ),
@@ -154,70 +154,24 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                         child: Column(
                           children: [
                             _buildHeader(primaryColor),
-                            const SizedBox(height: 24),
                             _buildCurrentPlanCard(primaryColor, loc),
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 24),
+                            
+                            // Plan Toggle Selector
+                            _buildPlanToggle(primaryColor, loc),
+                            const SizedBox(height: 24),
+                            
+                            // Section Title
                             _buildSectionTitle(
                               loc.translate('choose_plan'),
                               primaryColor,
                             ),
                             const SizedBox(height: 16),
-                            _buildPlanCard(
-                              title: loc.translate('basic_plan'),
-                              price: '299',
-                              period: loc.translate('month'),
-                              features: [
-                                '✓ ${loc.translate('unlimited_bills')}',
-                                '✓ ${loc.translate('whatsapp_reports')}',
-                                '✓ ${loc.translate('basic_analytics')}',
-                                '✓ ${loc.translate('branch_support_1')}',
-                              ],
-                              color: const Color(0xFF3B82F6),
-                              isSelected: _selectedPlan == 'basic',
-                              loc: loc,
-                              onTap: () =>
-                                  setState(() => _selectedPlan = 'basic'),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildPlanCard(
-                              title: loc.translate('pro_plan'),
-                              price: '799',
-                              period: loc.translate('month'),
-                              features: [
-                                '✓ ${loc.translate('everything_in_basic')}',
-                                '✓ ${loc.translate('inventory_management')}',
-                                '✓ ${loc.translate('customer_loyalty')}',
-                                '✓ ${loc.translate('branch_support_3')}',
-                                '✓ ${loc.translate('priority_support')}',
-                              ],
-                              color: const Color(0xFF8B5CF6),
-                              isPopular: true,
-                              isSelected: _selectedPlan == 'pro',
-                              loc: loc,
-                              onTap: () =>
-                                  setState(() => _selectedPlan = 'pro'),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildPlanCard(
-                              title: loc.translate('enterprise_plan'),
-                              price: loc.translate('custom'),
-                              period: '',
-                              features: [
-                                '✓ ${loc.translate('everything_in_pro')}',
-                                '✓ ${loc.translate('multi_branch_sync')}',
-                                '✓ ${loc.translate('dedicated_manager')}',
-                                '✓ ${loc.translate('api_access')}',
-                                '✓ ${loc.translate('white_label')}',
-                              ],
-                              color: const Color(0xFFF59E0B),
-                              isSelected: _selectedPlan == 'enterprise',
-                              loc: loc,
-                              onTap: () =>
-                                  setState(() => _selectedPlan = 'enterprise'),
-                            ),
-                            const SizedBox(height: 32),
-                            _buildBottomAction(primaryColor, loc),
-                            const SizedBox(height: 120),
+                            
+                            // Comparison Table
+                            _buildComparisonTable(primaryColor, loc),
+                            
+                            const SizedBox(height: 140), // Spacing for bottom sheet
                           ],
                         ),
                       ),
@@ -226,8 +180,14 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                 ],
               ),
 
-              // Bottom action button
-              
+              // Bottom payment summary action
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: _buildBottomAction(primaryColor, loc),
+                ),
+              ),
             ],
           ),
         ),
@@ -247,23 +207,6 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
             shape: BoxShape.circle,
             gradient: RadialGradient(
               colors: [
-                primaryColor.withValues(alpha: 0.12),
-                Colors.transparent,
-              ],
-            ),
-          ),
-        ),
-      ),
-      Positioned(
-        bottom: 100,
-        left: -60,
-        child: Container(
-          width: 200,
-          height: 200,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
                 primaryColor.withValues(alpha: 0.08),
                 Colors.transparent,
               ],
@@ -272,16 +215,16 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
         ),
       ),
       Positioned(
-        top: 300,
-        left: -40,
+        bottom: 150,
+        left: -60,
         child: Container(
-          width: 150,
-          height: 150,
+          width: 200,
+          height: 200,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: RadialGradient(
               colors: [
-                primaryColor.withValues(alpha: 0.06),
+                primaryColor.withValues(alpha: 0.05),
                 Colors.transparent,
               ],
             ),
@@ -293,42 +236,52 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
 
   Widget _buildHeader(Color primaryColor) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Row(
         children: [
           GestureDetector(
             onTap: () => context.pop(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Icon(
                 Icons.arrow_back_rounded,
                 color: primaryColor,
-                size: 22,
+                size: 20,
               ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Text(
+            'Subscription renewal',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+              letterSpacing: -0.5,
             ),
           ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.1),
+              color: primaryColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               Icons.auto_awesome_rounded,
               color: primaryColor,
-              size: 22,
+              size: 20,
             ),
           ),
         ],
@@ -336,7 +289,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
     );
   }
 
-  Widget _buildCurrentPlanCard(Color primaryColor, loc) {
+  Widget _buildCurrentPlanCard(Color primaryColor, AppLocalizations loc) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(20),
@@ -344,12 +297,12 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+          colors: [primaryColor, primaryColor.withValues(alpha: 0.85)],
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withValues(alpha: 0.3),
+            color: primaryColor.withValues(alpha: 0.25),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -360,13 +313,13 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
               Icons.stars_rounded,
               color: Colors.white,
-              size: 28,
+              size: 26,
             ),
           ),
           const SizedBox(width: 16),
@@ -424,6 +377,90 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
     );
   }
 
+  Widget _buildPlanToggle(Color primaryColor, AppLocalizations loc) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDF2F7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildToggleTab(
+              title: 'Basic Plan',
+              subtitle: '₹199/mo',
+              isSelected: _selectedPlan == 'basic',
+              selectedColor: Colors.blue.shade600,
+              onTap: () => setState(() => _selectedPlan = 'basic'),
+            ),
+          ),
+          Expanded(
+            child: _buildToggleTab(
+              title: 'Pro Plan',
+              subtitle: '₹599/mo',
+              isSelected: _selectedPlan == 'pro',
+              selectedColor: Colors.purple.shade600,
+              onTap: () => setState(() => _selectedPlan = 'pro'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleTab({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required Color selectedColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: selectedColor.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white70 : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(String title, Color primaryColor) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -452,180 +489,139 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
     );
   }
 
-  Widget _buildPlanCard({
-    required String title,
-    required String price,
-    required String period,
-    required List<String> features,
-    required Color color,
-    required bool isSelected,
-    required AppLocalizations loc,
-    required VoidCallback onTap,
-    bool isPopular = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey[100]!,
-            width: isSelected ? 2 : 1,
+  Widget _buildComparisonTable(Color primaryColor, AppLocalizations loc) {
+    final isBasicSelected = _selectedPlan == 'basic';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.15),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Stack(
+        ],
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
           children: [
-            if (isPopular)
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.star_rounded, color: Colors.white, size: 12),
-                      const SizedBox(width: 4),
-                      Text(
-                        loc.translate('popular'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Table Header Row
+            Container(
+              color: const Color(0xFF0F172A),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(
-                          title == 'Basic'
-                              ? Icons.rocket_launch_rounded
-                              : title == 'Pro'
-                              ? Icons.flash_on_rounded
-                              : Icons.business_center_rounded,
-                          color: color,
-                          size: 24,
-                        ),
+                  const Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Feature Comparison',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                      if (isSelected)
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check_rounded,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
-                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        price == 'Custom' ? price : '₹$price',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                          letterSpacing: -1,
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isBasicSelected ? Colors.blue.withValues(alpha: 0.2) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'BASIC',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
-                      if (period.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6, left: 4),
-                          child: Text(
-                            '/$period',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[500],
-                              fontWeight: FontWeight.w500,
-                            ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        color: !isBasicSelected ? Colors.purple.withValues(alpha: 0.2) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'PRO',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ...features.map(
-                    (feature) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            size: 14,
-                            color: color,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            feature,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
                 ],
               ),
+            ),
+            
+            // Feature Rows
+            _FeatureRow(
+              feature: loc.translate('unlimited_bills'),
+              basicValue: const Icon(Icons.check_circle_rounded, color: Colors.blue, size: 18),
+              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              isEven: false,
+              isBasicSelected: isBasicSelected,
+            ),
+            _FeatureRow(
+              feature: loc.translate('whatsapp_reports'),
+              basicValue: const Icon(Icons.check_circle_rounded, color: Colors.blue, size: 18),
+              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              isEven: true,
+              isBasicSelected: isBasicSelected,
+            ),
+            _FeatureRow(
+              feature: 'Analytics Dashboard',
+              basicValue: const Text('Basic', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+              proValue: const Text('Advanced', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple)),
+              isEven: false,
+              isBasicSelected: isBasicSelected,
+            ),
+            _FeatureRow(
+              feature: loc.translate('inventory_management'),
+              basicValue: Icon(Icons.cancel_rounded, color: Colors.grey[300], size: 18),
+              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              isEven: true,
+              isBasicSelected: isBasicSelected,
+            ),
+            _FeatureRow(
+              feature: 'Customer Loyalty',
+              basicValue: Icon(Icons.cancel_rounded, color: Colors.grey[300], size: 18),
+              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              isEven: false,
+              isBasicSelected: isBasicSelected,
+            ),
+            _FeatureRow(
+              feature: 'Branch Support',
+              basicValue: const Text('1 Branch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              proValue: const Text('3 Branches', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple)),
+              isEven: true,
+              isBasicSelected: isBasicSelected,
+            ),
+            _FeatureRow(
+              feature: 'Customer Support',
+              basicValue: const Text('Standard', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
+              proValue: const Text('24/7 Priority', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple)),
+              isEven: false,
+              isBasicSelected: isBasicSelected,
             ),
           ],
         ),
@@ -633,10 +629,9 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
     );
   }
 
-  Widget _buildBottomAction(Color primaryColor, loc) {
-    final planPrices = {'basic': 299, 'pro': 799, 'enterprise': 0};
-    final selectedPrice = planPrices[_selectedPlan] ?? 0;
-    final isEnterprise = _selectedPlan == 'enterprise';
+  Widget _buildBottomAction(Color primaryColor, AppLocalizations loc) {
+    final planPrices = {'basic': 199, 'pro': 599};
+    final selectedPrice = planPrices[_selectedPlan] ?? 199;
 
     return Container(
       decoration: BoxDecoration(
@@ -644,74 +639,65 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
+        top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!isEnterprise)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: primaryColor.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        loc.translate('total_amount'),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      Text(
-                        '₹$selectedPrice',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      loc.translate('total_amount'),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    Text(
+                      '₹$selectedPrice',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: _selectedPlan == 'basic' ? Colors.blue.shade700 : Colors.purple.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               ElevatedButton(
                 onPressed: () {
                   HapticFeedback.mediumImpact();
-                  if (isEnterprise) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Calling enterprise support...'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else {
-                    _razorpayService.openCheckout(
-                      key: 'rzp_live_StUZupmMw4H4yc',
-                      amount: selectedPrice.toDouble(),
-                      name: 'Subscription Renewal',
-                      description: 'Renewal for ${_selectedPlan.toUpperCase()} Plan',
-                      contact: '9999999999',
-                      email: 'billing@viyan.com',
-                    );
-                  }
+                  _razorpayService.openCheckout(
+                    key: 'rzp_live_StUZupmMw4H4yc',
+                    amount: selectedPrice.toDouble(),
+                    name: 'Subscription Renewal',
+                    description: 'Renewal for ${_selectedPlan.toUpperCase()} Plan',
+                    contact: '9999999999',
+                    email: 'billing@viyan.com',
+                  );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
+                  backgroundColor: _selectedPlan == 'basic' ? Colors.blue.shade600 : Colors.purple.shade600,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 54),
                   shape: RoundedRectangleBorder(
@@ -720,9 +706,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                   elevation: 0,
                 ),
                 child: Text(
-                  isEnterprise 
-                    ? loc.translate('contact_sales') 
-                    : loc.translate('proceed_payment'),
+                  loc.translate('proceed_payment'),
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -733,6 +717,76 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  final String feature;
+  final Widget basicValue;
+  final Widget proValue;
+  final bool isEven;
+  final bool isBasicSelected;
+
+  const _FeatureRow({
+    required this.feature,
+    required this.basicValue,
+    required this.proValue,
+    required this.isEven,
+    required this.isBasicSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isEven ? Colors.white : const Color(0xFFF8FAFC),
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              feature,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: isBasicSelected 
+                    ? Colors.blue.withValues(alpha: 0.03)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(child: basicValue),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: !isBasicSelected 
+                    ? Colors.purple.withValues(alpha: 0.03)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(child: proValue),
+            ),
+          ),
+        ],
       ),
     );
   }

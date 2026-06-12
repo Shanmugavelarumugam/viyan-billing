@@ -191,4 +191,30 @@ class FirestoreRepository {
       );
     }).toList();
   }
+
+  // --- DEVICE TRIAL CHECK & REGISTRATION ---
+
+  Future<Map<String, dynamic>?> checkAndRegisterDeviceTrial(String deviceId, String email) async {
+    final db = _db;
+    if (db == null) return null;
+
+    final docRef = db.collection('trial_devices').doc(deviceId);
+    final doc = await docRef.get();
+
+    final now = DateTime.now();
+
+    if (!doc.exists) {
+      final trialData = {
+        'deviceId': deviceId,
+        'firstEmail': email,
+        'trialStartedAt': now.toIso8601String(),
+        'trialEndsAt': now.add(const Duration(days: 15)).toIso8601String(),
+        'isBlocked': false,
+      };
+      await docRef.set(trialData);
+      return trialData;
+    } else {
+      return doc.data();
+    }
+  }
 }

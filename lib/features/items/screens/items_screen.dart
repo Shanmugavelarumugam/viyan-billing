@@ -769,21 +769,23 @@ class _MenuItemCard extends StatelessWidget {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                        ? (item.imageUrl!.startsWith('http')
-                            ? Image.network(
-                                item.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-                              )
-                            : (File(item.imageUrl!).existsSync() 
-                                ? Image.file(
-                                    File(item.imageUrl!),
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-                                  )
-                                : _buildPlaceholder()))
-                        : _buildPlaceholder(),
+                    child: RepaintBoundary(
+                      child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                          ? (item.imageUrl!.startsWith('http')
+                              ? Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  cacheWidth: 300,
+                                  errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                                )
+                              : Image.file(
+                                  File(item.imageUrl!),
+                                  fit: BoxFit.cover,
+                                  cacheWidth: 300,
+                                  errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                                ))
+                          : _buildPlaceholder(),
+                    ),
                   ),
                   if (!item.isAvailable)
                     Container(

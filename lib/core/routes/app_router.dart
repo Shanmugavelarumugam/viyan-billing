@@ -147,10 +147,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'renewal',
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const PlanRenewalScreen(),
                   ),
                   GoRoute(
                     path: 'expiry',
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const PlanExpiryScreen(),
                   ),
                 ],
