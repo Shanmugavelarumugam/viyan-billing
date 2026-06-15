@@ -254,44 +254,48 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : () async {
                   if (shop == null) return;
+                  
+                  if (_nameController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Shop name cannot be empty'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
                   setState(() => _isSaving = true);
-                                    try {
-                      String? finalPhotoPath = _profilePhotoPath;
-                      
-                      // If a new local image was picked, upload it to Firebase Storage
-                      if (_profilePhotoPath != null && !_profilePhotoPath!.startsWith('http')) {
-                        final storageService = ref.read(storageRepositoryProvider);
-                        final url = await storageService.uploadShopLogo(File(_profilePhotoPath!));
-                        
-                        if (url != null) {
-                          finalPhotoPath = url;
-                        } else {
-                          // UPLOAD FAILED - Critical Fix: Do NOT save the local path to cloud
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Cloud upload failed. Profile saved without the new image.'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          }
-                          // Revert to old path if possible or set to null to avoid broken links
-                          finalPhotoPath = shop.profilePhotoPath?.startsWith('http') == true 
-                              ? shop.profilePhotoPath 
-                              : null;
-                        }
+                  try {
+                    String? finalPhotoPath = _profilePhotoPath;
+                    
+                    // If a new local image was picked, upload it to Firebase Storage
+                    if (_profilePhotoPath != null && !_profilePhotoPath!.startsWith('http')) {
+                      final file = File(_profilePhotoPath!);
+                      if (!await file.exists()) {
+                        throw Exception('Selected profile picture file does not exist locally.');
                       }
 
-                      final updatedShop = shop.copyWith(
-                        name: _nameController.text.trim(),
-                        ownerName: _ownerController.text.trim(),
-                        address: _addressController.text.trim(),
-                        upiId: _upiController.text.trim(),
-                        shopType: _selectedType,
-                        profilePhotoPath: finalPhotoPath,
-                      );
+                      final storageService = ref.read(storageRepositoryProvider);
+                      final url = await storageService.uploadShopLogo(file);
+                      
+                      if (url != null) {
+                        finalPhotoPath = url;
+                      } else {
+                        throw Exception('Failed to upload shop logo to cloud storage.');
+                      }
+                    }
 
-                      await ref.read(shopProvider.notifier).saveShop(updatedShop);
+                    final updatedShop = shop.copyWith(
+                      name: _nameController.text.trim(),
+                      ownerName: _ownerController.text.trim(),
+                      address: _addressController.text.trim(),
+                      upiId: _upiController.text.trim(),
+                      shopType: _selectedType,
+                      profilePhotoPath: finalPhotoPath,
+                    );
+
+                    await ref.read(shopProvider.notifier).saveShop(updatedShop);
                     
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -311,6 +315,20 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         ),
                       );
                       context.pop();
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Error saving profile: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error updating profile: ${e.toString().replaceAll('Exception: ', '')}'),
+                          backgroundColor: Colors.red[600],
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          margin: const EdgeInsets.all(20),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
                     }
                   } finally {
                     if (mounted) setState(() => _isSaving = false);

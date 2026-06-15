@@ -45,10 +45,9 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    ref.read(subscriptionProvider.notifier).renewPlan(
-      _selectedPlan == 'basic' ? 'Basic Plan' : 'Pro Plan',
-      30,
-    );
+    ref
+        .read(subscriptionProvider.notifier)
+        .renewPlan(_selectedPlan == 'basic' ? 'Basic Plan' : 'Pro Plan', 30);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -62,7 +61,9 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text('✅ Subscription Active! Payment ID: ${response.paymentId}'),
+                child: Text(
+                  '✅ Subscription Active! Payment ID: ${response.paymentId}',
+                ),
               ),
             ],
           ),
@@ -84,14 +85,12 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
         SnackBar(
           content: Row(
             children: [
-              const Icon(
-                Icons.error_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+              const Icon(Icons.error_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 12),
               Expanded(
-                child: Text('❌ Payment Failed: ${response.message ?? "Unknown error"}'),
+                child: Text(
+                  '❌ Payment Failed: ${response.message ?? "Unknown error"}',
+                ),
               ),
             ],
           ),
@@ -122,7 +121,6 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: Container(
@@ -130,10 +128,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              primaryColor.withValues(alpha: 0.02),
-              Colors.white,
-            ],
+            colors: [primaryColor.withValues(alpha: 0.02), Colors.white],
           ),
         ),
         child: SafeArea(
@@ -156,22 +151,24 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                             _buildHeader(primaryColor),
                             _buildCurrentPlanCard(primaryColor, loc),
                             const SizedBox(height: 24),
-                            
+
                             // Plan Toggle Selector
                             _buildPlanToggle(primaryColor, loc),
                             const SizedBox(height: 24),
-                            
+
                             // Section Title
                             _buildSectionTitle(
                               loc.translate('choose_plan'),
                               primaryColor,
                             ),
                             const SizedBox(height: 16),
-                            
+
                             // Comparison Table
                             _buildComparisonTable(primaryColor, loc),
-                            
-                            const SizedBox(height: 140), // Spacing for bottom sheet
+
+                            const SizedBox(
+                              height: 140,
+                            ), // Spacing for bottom sheet
                           ],
                         ),
                       ),
@@ -272,18 +269,6 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
             ),
           ),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              color: primaryColor,
-              size: 20,
-            ),
-          ),
         ],
       ),
     );
@@ -431,7 +416,7 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                     color: selectedColor.withValues(alpha: 0.25),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ]
               : null,
         ),
@@ -532,7 +517,9 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       decoration: BoxDecoration(
-                        color: isBasicSelected ? Colors.blue.withValues(alpha: 0.2) : Colors.transparent,
+                        color: isBasicSelected
+                            ? Colors.blue.withValues(alpha: 0.2)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Center(
@@ -553,7 +540,9 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       decoration: BoxDecoration(
-                        color: !isBasicSelected ? Colors.purple.withValues(alpha: 0.2) : Colors.transparent,
+                        color: !isBasicSelected
+                            ? Colors.purple.withValues(alpha: 0.2)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Center(
@@ -572,54 +561,128 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                 ],
               ),
             ),
-            
+
             // Feature Rows
             _FeatureRow(
               feature: loc.translate('unlimited_bills'),
-              basicValue: const Icon(Icons.check_circle_rounded, color: Colors.blue, size: 18),
-              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              basicValue: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.blue,
+                size: 18,
+              ),
+              proValue: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.purple,
+                size: 18,
+              ),
               isEven: false,
               isBasicSelected: isBasicSelected,
             ),
             _FeatureRow(
               feature: loc.translate('whatsapp_reports'),
-              basicValue: const Icon(Icons.check_circle_rounded, color: Colors.blue, size: 18),
-              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              basicValue: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.blue,
+                size: 18,
+              ),
+              proValue: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.purple,
+                size: 18,
+              ),
               isEven: true,
               isBasicSelected: isBasicSelected,
             ),
             _FeatureRow(
               feature: 'Analytics Dashboard',
-              basicValue: const Text('Basic', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
-              proValue: const Text('Advanced', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple)),
+              basicValue: const Text(
+                'Basic',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              proValue: const Text(
+                'Advanced',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
+                ),
+              ),
               isEven: false,
               isBasicSelected: isBasicSelected,
             ),
             _FeatureRow(
               feature: loc.translate('inventory_management'),
-              basicValue: Icon(Icons.cancel_rounded, color: Colors.grey[300], size: 18),
-              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              basicValue: Icon(
+                Icons.cancel_rounded,
+                color: Colors.grey[300],
+                size: 18,
+              ),
+              proValue: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.purple,
+                size: 18,
+              ),
               isEven: true,
               isBasicSelected: isBasicSelected,
             ),
             _FeatureRow(
               feature: 'Customer Loyalty',
-              basicValue: Icon(Icons.cancel_rounded, color: Colors.grey[300], size: 18),
-              proValue: const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 18),
+              basicValue: Icon(
+                Icons.cancel_rounded,
+                color: Colors.grey[300],
+                size: 18,
+              ),
+              proValue: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.purple,
+                size: 18,
+              ),
               isEven: false,
               isBasicSelected: isBasicSelected,
             ),
             _FeatureRow(
               feature: 'Branch Support',
-              basicValue: const Text('1 Branch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
-              proValue: const Text('3 Branches', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple)),
+              basicValue: const Text(
+                '1 Branch',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF475569),
+                ),
+              ),
+              proValue: const Text(
+                '3 Branches',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
+                ),
+              ),
               isEven: true,
               isBasicSelected: isBasicSelected,
             ),
             _FeatureRow(
               feature: 'Customer Support',
-              basicValue: const Text('Standard', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
-              proValue: const Text('24/7 Priority', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple)),
+              basicValue: const Text(
+                'Standard',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              proValue: const Text(
+                '24/7 Priority',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
+                ),
+              ),
               isEven: false,
               isBasicSelected: isBasicSelected,
             ),
@@ -678,7 +741,9 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: _selectedPlan == 'basic' ? Colors.blue.shade700 : Colors.purple.shade700,
+                        color: _selectedPlan == 'basic'
+                            ? Colors.blue.shade700
+                            : Colors.purple.shade700,
                       ),
                     ),
                   ],
@@ -691,13 +756,16 @@ class _PlanRenewalScreenState extends ConsumerState<PlanRenewalScreen>
                     key: 'rzp_live_StUZupmMw4H4yc',
                     amount: selectedPrice.toDouble(),
                     name: 'Subscription Renewal',
-                    description: 'Renewal for ${_selectedPlan.toUpperCase()} Plan',
+                    description:
+                        'Renewal for ${_selectedPlan.toUpperCase()} Plan',
                     contact: '9999999999',
                     email: 'billing@viyan.com',
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedPlan == 'basic' ? Colors.blue.shade600 : Colors.purple.shade600,
+                  backgroundColor: _selectedPlan == 'basic'
+                      ? Colors.blue.shade600
+                      : Colors.purple.shade600,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 54),
                   shape: RoundedRectangleBorder(
@@ -765,7 +833,7 @@ class _FeatureRow extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 2),
               decoration: BoxDecoration(
-                color: isBasicSelected 
+                color: isBasicSelected
                     ? Colors.blue.withValues(alpha: 0.03)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
@@ -778,7 +846,7 @@ class _FeatureRow extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 2),
               decoration: BoxDecoration(
-                color: !isBasicSelected 
+                color: !isBasicSelected
                     ? Colors.purple.withValues(alpha: 0.03)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),

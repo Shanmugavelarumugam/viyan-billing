@@ -13,6 +13,9 @@ class BillingRepository {
 
   Future<void> saveItem(ItemModel item) => _firestore.saveItem(item);
 
+  Future<void> deductStockTransactionally(Map<String, double> stockUpdates) =>
+      _firestore.deductStockTransactionally(stockUpdates);
+
   Future<void> deleteItem(String id) => _firestore.deleteItem(id);
 
   Future<List<ItemModel>> getItems() => _firestore.getItemsOnce();

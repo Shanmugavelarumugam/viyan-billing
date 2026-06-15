@@ -9,7 +9,6 @@ import '../localization/app_localizations.dart';
 import '../../features/shop_setup/providers/shop_provider.dart';
 
 // Screens
-import '../../features/splash/splash_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
 import '../../features/shop_setup/screens/shop_setup_screen.dart';
@@ -24,7 +23,7 @@ import '../../features/auth/providers/auth_provider.dart';
 import '../../features/billing/providers/cart_provider.dart';
 import '../../features/billing/screens/checkout_screen.dart';
 import '../../features/subscription/services/subscription_service.dart';
-
+import '../../features/splash/splash_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -39,6 +38,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final auth = ref.read(authProvider);
       final shopState = ref.read(shopProvider);
 
+      debugPrint("🔄 Router Redirect: Location: ${state.matchedLocation}, Auth: ${auth.isAuthenticated}, ShopLoaded: ${shopState.isLoaded}, Shop: ${shopState.shop?.name}");
+
       final isSplash = state.matchedLocation == '/';
       final isLogin = state.matchedLocation == '/login';
       final isSignup = state.matchedLocation == '/signup';
@@ -50,7 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       final shop = shopState.shop;
-      
+
       // If we have auth AND shop profile, skip onboarding and go to billing
       if (auth.isAuthenticated && shop != null) {
         if (isSplash || isLogin || isSignup || isShopSetup) {
@@ -68,17 +69,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (!isSplash && !isLogin && !isSignup) return '/login';
       }
 
-      // If authenticated and subscription is EXPIRED, force expiry screen
-      // (Unless they are already on the renewal screen to fix it)
+      // If authenticated and subscription is EXPIRED (or offline sync limit exceeded), force expiry screen
+      // (Unless they are already on the renewal screen to fix it, or they selected read-only mode and are NOT offline-blocked)
       final subscription = ref.read(subscriptionProvider);
-      if (auth.isAuthenticated && !subscription.isActive) {
+      final readOnlyModeSelected = ref.read(readOnlyModeSelectedProvider);
+      final shouldBlock = !subscription.isActive || subscription.isOfflineBlock;
+      final needsRedirect =
+          shouldBlock && (!readOnlyModeSelected || subscription.isOfflineBlock);
+
+      if (auth.isAuthenticated && needsRedirect) {
         final isRenewal = state.matchedLocation == '/profile/renewal';
         final isExpiry = state.matchedLocation == '/profile/expiry';
         if (!isRenewal && !isExpiry) {
           return '/profile/expiry';
         }
       }
-      
+
       return null;
     },
     routes: [
@@ -86,10 +92,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/',
         builder: (context, state) => const SplashScreen(),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/signup',
         builder: (context, state) => const SignupScreen(),
@@ -104,7 +107,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CheckoutScreen(),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => MainShell(navigationShell: navigationShell),
+        builder: (context, state, navigationShell) =>
+            MainShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(
             navigatorKey: GlobalKey<NavigatorState>(),
@@ -170,18 +174,27 @@ class _RouterRefreshStream extends ChangeNotifier {
   _RouterRefreshStream(Ref ref) {
     _subscription = ref.listen(authProvider, (_, _) => notifyListeners());
     _shopSubscription = ref.listen(shopProvider, (_, _) => notifyListeners());
-    _subStatusSubscription = ref.listen(subscriptionProvider, (_, _) => notifyListeners());
+    _subStatusSubscription = ref.listen(
+      subscriptionProvider,
+      (_, _) => notifyListeners(),
+    );
+    _readOnlySubscription = ref.listen(
+      readOnlyModeSelectedProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
   late final ProviderSubscription _subscription;
   late final ProviderSubscription _shopSubscription;
   late final ProviderSubscription _subStatusSubscription;
+  late final ProviderSubscription _readOnlySubscription;
 
   @override
   void dispose() {
     _subscription.close();
     _shopSubscription.close();
     _subStatusSubscription.close();
+    _readOnlySubscription.close();
     super.dispose();
   }
 }
@@ -195,11 +208,12 @@ class MainShell extends ConsumerWidget {
     final l10n = ref.watch(localizationProvider);
     final theme = Theme.of(context);
     final cartState = ref.watch(cartProvider);
-    
+
     // Hide nav bar if on billing tab AND cart has items
-    final bool showNavBar = navigationShell.currentIndex != 0 || 
-                           cartState.selectedBill.items.isEmpty;
-    
+    final bool showNavBar =
+        navigationShell.currentIndex != 0 ||
+        cartState.selectedBill.items.isEmpty;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -222,15 +236,15 @@ class MainShell extends ConsumerWidget {
           children: [
             // Content Area
             Positioned.fill(child: navigationShell),
-            
+
             // Floating Nav Bar
             AnimatedPositioned(
               duration: const Duration(milliseconds: 400),
               curve: Curves.fastOutSlowIn,
               left: 20,
               right: 20,
-              bottom: showNavBar 
-                  ? (16 + MediaQuery.paddingOf(context).bottom) 
+              bottom: showNavBar
+                  ? (16 + MediaQuery.paddingOf(context).bottom)
                   : -100,
               child: _buildFloatingNavBar(context, theme, ref, l10n),
             ),
@@ -258,7 +272,9 @@ class MainShell extends ConsumerWidget {
           child: Opacity(
             opacity: anim1.value,
             child: Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 340),
@@ -278,7 +294,11 @@ class MainShell extends ConsumerWidget {
                       ),
                       child: const Column(
                         children: [
-                          Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 42),
+                          Icon(
+                            Icons.exit_to_app_rounded,
+                            color: Colors.white,
+                            size: 42,
+                          ),
                           SizedBox(height: 12),
                           Text(
                             'Quit Viyan Billing?',
@@ -298,16 +318,31 @@ class MainShell extends ConsumerWidget {
                           Text(
                             'Are you sure you want to close the app? Any unsaved changes in billing might be lost.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
                           ),
                           const SizedBox(height: 32),
                           Row(
                             children: [
                               Expanded(
                                 child: TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
-                                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                                  child: Text('STAY', style: TextStyle(color: Colors.grey[500], fontWeight: FontWeight.bold)),
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'STAY',
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -318,10 +353,19 @@ class MainShell extends ConsumerWidget {
                                     backgroundColor: theme.colorScheme.primary,
                                     foregroundColor: Colors.white,
                                     elevation: 0,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
                                   ),
-                                  child: const Text('QUIT', style: TextStyle(fontWeight: FontWeight.w900)),
+                                  child: const Text(
+                                    'QUIT',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -339,10 +383,15 @@ class MainShell extends ConsumerWidget {
     );
   }
 
-  Widget _buildFloatingNavBar(BuildContext context, ThemeData theme, WidgetRef ref, l10n) {
+  Widget _buildFloatingNavBar(
+    BuildContext context,
+    ThemeData theme,
+    WidgetRef ref,
+    l10n,
+  ) {
     final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark 
-        ? theme.colorScheme.surfaceContainerHigh 
+    final bgColor = isDark
+        ? theme.colorScheme.surfaceContainerHigh
         : Colors.white;
     final shadowColor = isDark ? Colors.black45 : Colors.black12;
 
@@ -378,12 +427,17 @@ class MainShell extends ConsumerWidget {
               theme: theme,
             ),
           ),
-          
+
           // Central "Add Bill" Action
           Transform.translate(
             offset: const Offset(0, -12),
             child: GestureDetector(
               onTap: () {
+                final subscription = ref.read(subscriptionProvider);
+                if (!subscription.isActive) {
+                  showSubscriptionExpiredDialog(context);
+                  return;
+                }
                 // Quick add bill and switch to home
                 ref.read(cartProvider.notifier).addBill();
                 navigationShell.goBranch(0);
@@ -417,7 +471,7 @@ class MainShell extends ConsumerWidget {
               ),
             ),
           ),
-          
+
           Expanded(
             child: _buildNavItem(
               index: 2,

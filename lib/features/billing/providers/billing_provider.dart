@@ -75,6 +75,13 @@ class ItemsNotifier extends StateNotifier<List<ItemModel>> {
     }
   }
 
+  Future<void> updateItemLocal(ItemModel item) async {
+    final box = Hive.box<ItemModel>('items_box');
+    final key = box.keys.firstWhere((k) => box.get(k)?.id == item.id);
+    await box.put(key, item);
+    state = [for (final i in state) if (i.id == item.id) item else i];
+  }
+
   Future<void> deleteItem(String id) async {
     final box = Hive.box<ItemModel>('items_box');
     final key = box.keys.firstWhere((k) => box.get(k)?.id == id);

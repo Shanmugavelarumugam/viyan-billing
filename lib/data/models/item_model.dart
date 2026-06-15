@@ -28,6 +28,15 @@ class ItemModel extends HiveObject {
   @HiveField(7)
   final String? barcode;
 
+  @HiveField(8)
+  final double? stockCount;
+
+  @HiveField(9)
+  final bool trackStock;
+
+  @HiveField(10)
+  final int? lowStockThreshold;
+
   ItemModel({
     required this.id,
     required this.name,
@@ -37,6 +46,9 @@ class ItemModel extends HiveObject {
     this.imageUrl,
     this.costPrice,
     this.barcode,
+    this.stockCount = 0.0,
+    this.trackStock = false,
+    this.lowStockThreshold = 5,
   });
 
   ItemModel copyWith({
@@ -48,6 +60,9 @@ class ItemModel extends HiveObject {
     String? imageUrl,
     double? costPrice,
     String? barcode,
+    double? stockCount,
+    bool? trackStock,
+    int? lowStockThreshold,
   }) {
     return ItemModel(
       id: id ?? this.id,
@@ -58,6 +73,9 @@ class ItemModel extends HiveObject {
       imageUrl: imageUrl ?? this.imageUrl,
       costPrice: costPrice ?? this.costPrice,
       barcode: barcode ?? this.barcode,
+      stockCount: stockCount ?? this.stockCount,
+      trackStock: trackStock ?? this.trackStock,
+      lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
     );
   }
 }

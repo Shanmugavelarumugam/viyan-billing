@@ -138,7 +138,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               title: loc.translate('business_settings'),
                               children: [
                                 _buildTokenTile(shop, loc, primaryColor),
-                                _buildBackupTile(loc, primaryColor),
                               ],
                             ),
 
@@ -768,7 +767,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       color: Colors.blue,
       title: loc.translate('upi_id'),
       subtitle: shop.upiId ?? loc.translate('not_linked'),
-      onTap: () {},
+      onTap: () => _showUpiPasswordDialog(context, ref, shop, loc, primaryColor),
     );
   }
 
@@ -815,7 +814,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         color: Colors.teal,
         size: 20,
       ),
-      onTap: () {},
+      onTap: () {
+        final subscription = ref.read(subscriptionProvider);
+        if (!subscription.isActive) {
+          showSubscriptionExpiredDialog(context);
+          return;
+        }
+      },
       showDivider: false,
     );
   }
@@ -1153,6 +1158,378 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
         ],
       ),
+    );
+  }
+
+  void _showUpiPasswordDialog(
+    BuildContext context,
+    WidgetRef ref,
+    ShopModel shop,
+    AppLocalizations loc,
+    Color primaryColor,
+  ) {
+    final passwordController = TextEditingController();
+    bool obscureText = true;
+    bool isVerifying = false;
+    String? errorText;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) => const SizedBox(),
+      transitionBuilder: (dialogContext, anim1, anim2, child) {
+        return Transform.scale(
+          scale: anim1.value,
+          child: Opacity(
+            opacity: anim1.value,
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Dialog(
+                  backgroundColor: Colors.white,
+                  insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+                            ),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(Icons.lock_rounded, color: Colors.white, size: 38),
+                              SizedBox(height: 10),
+                              Text(
+                                'Verify Identity',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Enter your account password to edit UPI ID',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'PASSWORD',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.grey[500],
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: passwordController,
+                                obscureText: obscureText,
+                                autofocus: true,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.grey[50],
+                                  hintText: 'Enter your password',
+                                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                                  errorText: errorText,
+                                  prefixIcon: Icon(Icons.lock_outline_rounded, color: primaryColor),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      obscureText ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                      color: Colors.grey[400],
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setDialogState(() => obscureText = !obscureText),
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: Colors.grey[200]!),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: Colors.grey[200]!),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: primaryColor, width: 2),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(color: Colors.red),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                      ),
+                                      child: Text(
+                                        'CANCEL',
+                                        style: TextStyle(color: Colors.grey[500], fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: isVerifying
+                                          ? null
+                                          : () async {
+                                              final password = passwordController.text;
+                                              if (password.isEmpty) {
+                                                setDialogState(() => errorText = 'Password cannot be empty');
+                                                return;
+                                              }
+                                              setDialogState(() {
+                                                isVerifying = true;
+                                                errorText = null;
+                                              });
+                                              try {
+                                                final authState = ref.read(authProvider);
+                                                final email = authState.email ?? '';
+                                                await ref.read(authProvider.notifier).login(email, password);
+                                                if (context.mounted) {
+                                                  Navigator.pop(context);
+                                                  Future.delayed(const Duration(milliseconds: 150), () {
+                                                    if (context.mounted) {
+                                                      _showUpiEditDialog(context, ref, shop, loc, primaryColor);
+                                                    }
+                                                  });
+                                                }
+                                              } catch (e) {
+                                                setDialogState(() {
+                                                  isVerifying = false;
+                                                  errorText = 'Incorrect password. Please try again.';
+                                                });
+                                              }
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: primaryColor,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                      ),
+                                      child: isVerifying
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                            )
+                                          : const Text('VERIFY', style: TextStyle(fontWeight: FontWeight.w900)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showUpiEditDialog(
+    BuildContext context,
+    WidgetRef ref,
+    ShopModel shop,
+    AppLocalizations loc,
+    Color primaryColor,
+  ) {
+    final upiController = TextEditingController(text: shop.upiId ?? '');
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) => const SizedBox(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return Transform.scale(
+          scale: anim1.value,
+          child: Opacity(
+            opacity: anim1.value,
+            child: Dialog(
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Colors.blue.shade600, Colors.blue.shade400],
+                        ),
+                      ),
+                      child: const Column(
+                        children: [
+                          Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 38),
+                          SizedBox(height: 10),
+                          Text(
+                            'Edit UPI ID',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'UPI ID',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.grey[500],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: upiController,
+                            autofocus: true,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                              hintText: 'e.g. yourname@upi',
+                              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                              prefixIcon: const Icon(Icons.qr_code_rounded, color: Colors.blue),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(color: Colors.grey[200]!),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(color: Colors.grey[200]!),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(color: Colors.blue, width: 2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                  ),
+                                  child: Text(
+                                    'CANCEL',
+                                    style: TextStyle(color: Colors.grey[500], fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    final newUpiId = upiController.text.trim();
+                                    final updatedShop = shop.copyWith(upiId: newUpiId.isEmpty ? null : newUpiId);
+                                    Navigator.pop(context);
+                                    ref.read(shopProvider.notifier).saveShop(updatedShop);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Row(
+                                          children: [
+                                            Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                                            SizedBox(width: 10),
+                                            Text('UPI ID updated successfully'),
+                                          ],
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                        backgroundColor: Colors.green,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade600,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: const Text('SAVE', style: TextStyle(fontWeight: FontWeight.w900)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

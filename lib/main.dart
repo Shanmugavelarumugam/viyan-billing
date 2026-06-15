@@ -10,6 +10,7 @@ import 'data/models/order_model.dart';
 
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'core/services/notification_service.dart';
 
 void main() async {
   // Use a targeted try-catch for the early initialization to catch fatal errors
@@ -31,6 +32,9 @@ void main() async {
 
     // 4. Initialize Firebase (with platform safety)
     await _initializeFirebase();
+
+    // 5. Initialize Notification Service (non-blocking)
+    NotificationService.init();
 
     runApp(
       const ProviderScope(
@@ -77,23 +81,56 @@ void main() async {
 }
 
 void _registerAdapters() {
-  Hive.registerAdapter(ShopModelAdapter());
-  Hive.registerAdapter(ItemModelAdapter());
-  Hive.registerAdapter(CartItemModelAdapter());
-  Hive.registerAdapter(OrderModelAdapter());
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(ShopModelAdapter());
+  }
+  if (!Hive.isAdapterRegistered(1)) {
+    Hive.registerAdapter(ItemModelAdapter());
+  }
+  if (!Hive.isAdapterRegistered(2)) {
+    Hive.registerAdapter(CartItemModelAdapter());
+  }
+  if (!Hive.isAdapterRegistered(3)) {
+    Hive.registerAdapter(OrderModelAdapter());
+  }
 }
 
 Future<void> _openBoxes() async {
+  // Open boxes individually so we can handle migration errors per-box
+  await _openBoxSafely<ShopModel>('shop_box');
+  await _openBoxSafely<ItemModel>('items_box');
+  await _openBoxSafely<OrderModel>('orders_box');
+  await _openBoxSafely<dynamic>('settings_box');
+  debugPrint("✅ Hive boxes opened");
+}
+
+/// Opens a typed Hive box, and if it fails due to schema changes (type cast errors),
+/// it closes the box if open, deletes the corrupted box from disk, and reopens it fresh.
+Future<void> _openBoxSafely<T>(String boxName) async {
   try {
-    await Hive.openBox<ShopModel>('shop_box');
-    await Hive.openBox<ItemModel>('items_box');
-    await Hive.openBox<OrderModel>('orders_box');
-    await Hive.openBox('settings_box'); // Box for simple settings like current token
+    if (T == dynamic) {
+      await Hive.openBox(boxName);
+    } else {
+      await Hive.openBox<T>(boxName);
+    }
   } catch (e) {
-    debugPrint("⚠️ Error opening Hive boxes: $e. Attempting to clear and reopen...");
-    // If opening fails (often due to corruption), we might need to delete and recreate
-    // For now, just rethrow to let the global handler catch it
-    rethrow;
+    debugPrint("⚠️ Box '$boxName' failed to open (schema mismatch?): $e");
+    debugPrint("🔄 Deleting and recreating box '$boxName'...");
+    try {
+      if (Hive.isBoxOpen(boxName)) {
+        await Hive.box(boxName).close();
+      }
+      await Hive.deleteBoxFromDisk(boxName);
+      if (T == dynamic) {
+        await Hive.openBox(boxName);
+      } else {
+        await Hive.openBox<T>(boxName);
+      }
+      debugPrint("✅ Box '$boxName' recreated successfully.");
+    } catch (e2) {
+      debugPrint("❌ Failed to recreate box '$boxName': $e2");
+      rethrow;
+    }
   }
 }
 

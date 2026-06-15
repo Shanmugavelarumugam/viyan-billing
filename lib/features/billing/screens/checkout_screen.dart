@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
+import '../../../data/models/order_model.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -11,6 +13,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/shop_model.dart';
 import '../services/whatsapp_service.dart';
 import '../../../core/services/razorpay_service.dart';
+import '../../subscription/services/subscription_service.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -25,6 +28,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   late TextEditingController _nameController;
   bool _showQR = false;
   String _selectedPaymentMethod = 'cash';
+  bool _isProcessing = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
@@ -58,36 +62,236 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     );
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    final token = ref.read(tokenProvider);
-    ref.read(cartProvider.notifier).completeBill(
-          paymentMethod: 'Razorpay',
-          phone: _phoneController.text.trim(),
-        );
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Colors.white,
-                size: 20,
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    setState(() => _isProcessing = true);
+    try {
+      final order = await ref
+          .read(cartProvider.notifier)
+          .completeBill(
+            paymentMethod: 'Razorpay',
+            phone: _phoneController.text.trim(),
+          );
+      if (order != null) {
+        _showSuccessDialog(order);
+      } else {
+        throw Exception('Order could not be generated.');
+      }
+    } catch (e) {
+      debugPrint('❌ Razorpay checkout error: $e');
+      _showErrorDialog(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  void _showSuccessDialog(OrderModel order) {
+    HapticFeedback.heavyImpact();
+    bool dismissedManually = false;
+
+    final dismissTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (!dismissedManually && mounted) {
+        Navigator.of(context).pop(); // dismiss dialog
+        Navigator.of(context).pop(); // pop checkout screen
+      }
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        final primaryColor = Theme.of(context).colorScheme.primary;
+        return PopScope(
+          canPop: false, // Prevent back button during auto-dismiss
+          child: Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            elevation: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.green,
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Sale Completed',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFE2E8F0)),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Invoice:',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '#${order.tokenNumber}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Items:',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${order.items.fold(0, (sum, item) => sum + item.quantity)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Amount:',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '₹${order.total.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(color: Color(0xFFE2E8F0)),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Printing invoice...'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.print_rounded, size: 18),
+                          label: const Text('Print'),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: primaryColor),
+                            foregroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            dismissedManually = true;
+                            dismissTimer.cancel();
+                            Navigator.of(context).pop(); // Pop Dialog
+                            Navigator.of(context).pop(); // Pop Checkout Screen
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Done',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Text('✅ Payment Success! Token #$token completed'),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(String error) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.red, size: 28),
+              SizedBox(width: 12),
+              Text('Checkout Failed', style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+          content: Text(
+            error.contains('Exception:') ? error.replaceAll('Exception: ', '') : 'An unexpected error occurred during checkout. Please try again.',
+            style: const TextStyle(fontSize: 14),
           ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _handlePaymentFailure(PaymentFailureResponse response) {
@@ -96,14 +300,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         SnackBar(
           content: Row(
             children: [
-              const Icon(
-                Icons.error_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+              const Icon(Icons.error_rounded, color: Colors.white, size: 20),
               const SizedBox(width: 12),
               Expanded(
-                child: Text('❌ Payment Failed: ${response.message ?? "Unknown error"}'),
+                child: Text(
+                  '❌ Payment Failed: ${response.message ?? "Unknown error"}',
+                ),
               ),
             ],
           ),
@@ -459,8 +661,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                           ),
                           onPressed: () {
                             HapticFeedback.lightImpact();
-                            ref.read(cartProvider.notifier).addItem(item.item);
-                            setState(() {});
+                            final success = ref.read(cartProvider.notifier).addItem(item.item);
+                            if (!success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Insufficient stock for ${item.item.name}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            } else {
+                              setState(() {});
+                            }
                           },
                           icon: Icon(
                             Icons.add_rounded,
@@ -588,7 +799,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                     icon: Icons.money_rounded,
                     isSelected: _selectedPaymentMethod == 'cash',
                     onTap: () =>
-                        setState(() => _selectedPaymentMethod = 'cash'),
+                        setState(() {
+                          _selectedPaymentMethod = 'cash';
+                          _showQR = false;
+                        }),
                     color: Colors.green,
                   ),
                 ),
@@ -605,21 +819,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                       });
                     },
                     color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildPaymentOption(
-                    title: 'Razorpay',
-                    icon: Icons.payment_rounded,
-                    isSelected: _selectedPaymentMethod == 'razorpay',
-                    onTap: () {
-                      setState(() {
-                        _selectedPaymentMethod = 'razorpay';
-                        _showQR = false;
-                      });
-                    },
-                    color: Colors.purple,
                   ),
                 ),
               ],
@@ -924,6 +1123,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                             surfaceTintColor: Colors.transparent,
                             child: InkWell(
                               onTap: () async {
+                                final subscription = ref.read(
+                                  subscriptionProvider,
+                                );
+                                if (!subscription.isActive) {
+                                  showSubscriptionExpiredDialog(context);
+                                  return;
+                                }
                                 HapticFeedback.heavyImpact();
                                 final box =
                                     context.findRenderObject() as RenderBox?;
@@ -968,52 +1174,39 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                     ),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        if (_selectedPaymentMethod == 'razorpay') {
-                          _razorpayService.openCheckout(
-                            key: 'rzp_live_StUZupmMw4H4yc',
-                            amount: bill.total,
-                            name: shop?.name ?? 'Billing App',
-                            description: 'Payment for Token #$token',
-                            contact: _phoneController.text.trim().isNotEmpty
-                                ? _phoneController.text.trim()
-                                : '9999999999',
-                            email: 'customer@example.com',
-                          );
-                        } else {
-                          ref
-                              .read(cartProvider.notifier)
-                              .completeBill(
-                                paymentMethod: _selectedPaymentMethod == 'cash'
-                                    ? 'Cash'
-                                    : 'UPI',
-                                phone: _phoneController.text.trim(),
-                              );
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text('✅ Token #$token completed'),
-                                ],
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              backgroundColor: Colors.green,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      },
+                      onPressed: _isProcessing
+                          ? null
+                          : () async {
+                              final subscription = ref.read(subscriptionProvider);
+                              if (!subscription.isActive) {
+                                showSubscriptionExpiredDialog(context);
+                                return;
+                              }
+                              HapticFeedback.mediumImpact();
+                              setState(() => _isProcessing = true);
+                              try {
+                                final order = await ref
+                                    .read(cartProvider.notifier)
+                                    .completeBill(
+                                      paymentMethod: _selectedPaymentMethod == 'cash'
+                                          ? 'Cash'
+                                          : 'UPI',
+                                      phone: _phoneController.text.trim(),
+                                    );
+                                if (order != null) {
+                                  _showSuccessDialog(order);
+                                } else {
+                                  throw Exception('Order could not be generated.');
+                                }
+                              } catch (e) {
+                                debugPrint('❌ Error during checkout: $e');
+                                _showErrorDialog(e.toString());
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isProcessing = false);
+                                }
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
@@ -1024,21 +1217,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                         elevation: 0,
                         shadowColor: primaryColor.withValues(alpha: 0.4),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'COMPLETE',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                      child: _isProcessing
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 3,
+                              ),
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'COMPLETE',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(Icons.arrow_forward_rounded, size: 16),
+                              ],
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward_rounded, size: 16),
-                        ],
-                      ),
                     ),
                   ),
                 ],

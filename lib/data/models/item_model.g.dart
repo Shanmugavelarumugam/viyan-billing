@@ -17,21 +17,24 @@ class ItemModelAdapter extends TypeAdapter<ItemModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return ItemModel(
-      id: fields[0] as String,
-      name: fields[1] as String,
-      price: fields[2] as double,
+      id: fields[0] as String? ?? '',
+      name: fields[1] as String? ?? '',
+      price: fields[2] as double? ?? 0.0,
       category: fields[3] as String?,
-      isAvailable: fields[4] as bool,
+      isAvailable: fields[4] as bool? ?? true,
       imageUrl: fields[5] as String?,
       costPrice: fields[6] as double?,
       barcode: fields[7] as String?,
+      stockCount: fields[8] as double?,
+      trackStock: fields[9] as bool? ?? false,
+      lowStockThreshold: fields[10] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ItemModel obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +50,13 @@ class ItemModelAdapter extends TypeAdapter<ItemModel> {
       ..writeByte(6)
       ..write(obj.costPrice)
       ..writeByte(7)
-      ..write(obj.barcode);
+      ..write(obj.barcode)
+      ..writeByte(8)
+      ..write(obj.stockCount)
+      ..writeByte(9)
+      ..write(obj.trackStock)
+      ..writeByte(10)
+      ..write(obj.lowStockThreshold);
   }
 
   @override

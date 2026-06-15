@@ -171,7 +171,7 @@ class WhatsappService {
   }
 
   static Future<void> launchSupport() async {
-    const supportPhone = '919000000000'; // Replace with real support number
+    const supportPhone = '916379723465'; // Real support number
     final whatsappUrl = Uri.parse(
       'https://wa.me/$supportPhone?text=${Uri.encodeComponent("Hello Viyan Billing Support, I need help with...")}',
     );

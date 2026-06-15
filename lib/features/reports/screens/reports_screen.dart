@@ -6,6 +6,7 @@ import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../billing/services/whatsapp_service.dart';
 import '../../shop_setup/providers/shop_provider.dart';
+import '../../subscription/services/subscription_service.dart';
 import '../../../../data/repositories/firestore_repository.dart';
 import '../../../data/models/order_model.dart';
 import '../widgets/daily_sales_chart.dart';
@@ -449,68 +450,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
                     ],
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.white.withValues(alpha: 0.2),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        'ORDERS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.7),
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${orders.length}',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.white.withValues(alpha: 0.2),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'AVG BILL',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.7),
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '₹${orders.isEmpty ? '0' : (totalSales / orders.length).toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -550,6 +489,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
             fontSize: 12,
           ),
           onChanged: (ReportFilter? newValue) {
+            if (newValue != null &&
+                (newValue == ReportFilter.thisWeek ||
+                 newValue == ReportFilter.thisMonth ||
+                 newValue == ReportFilter.custom)) {
+              final subscription = ref.read(subscriptionProvider);
+              if (!subscription.isActive) {
+                showSubscriptionExpiredDialog(context);
+                return;
+              }
+            }
             if (newValue == ReportFilter.custom) {
               _selectDateRange(context);
             } else if (newValue != null) {
@@ -629,6 +578,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     return Builder(
       builder: (context) => GestureDetector(
         onTap: () {
+          final subscription = ref.read(subscriptionProvider);
+          if (!subscription.isActive) {
+            showSubscriptionExpiredDialog(context);
+            return;
+          }
           final shop = ref.read(shopProvider).shop;
           if (shop != null) {
             final RenderBox? box = context.findRenderObject() as RenderBox?;
@@ -985,14 +939,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     List<OrderModel> orders,
     Color primaryColor,
   ) {
-    final cashTotal = orders
+    final cashCount = orders
         .where((o) => o.paymentMethod.toLowerCase() == 'cash')
-        .fold(0.0, (sum, o) => sum + o.total);
-    final upiTotal = orders
+        .length;
+    final upiCount = orders
         .where((o) => o.paymentMethod.toLowerCase() == 'upi')
-        .fold(0.0, (sum, o) => sum + o.total);
-    final total = cashTotal + upiTotal;
-    final cashPercent = total > 0 ? (cashTotal / total) * 100 : 0.0;
+        .length;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -1027,8 +979,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
               Expanded(
                 child: _buildPaymentCard(
                   'Cash',
-                  cashTotal,
-                  cashPercent,
+                  cashCount,
                   Colors.teal,
                 ),
               ),
@@ -1036,8 +987,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
               Expanded(
                 child: _buildPaymentCard(
                   'UPI',
-                  upiTotal,
-                  100 - cashPercent,
+                  upiCount,
                   Colors.indigo,
                 ),
               ),
@@ -1050,8 +1000,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
 
   Widget _buildPaymentCard(
     String method,
-    double amount,
-    double percent,
+    int count,
     Color color,
   ) {
     return Container(
@@ -1093,17 +1042,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            '₹${amount.toStringAsFixed(0)}',
+            '$count Transaction${count == 1 ? '' : 's'}',
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1E293B),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${percent.toStringAsFixed(1)}%',
-            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
           ),
         ],
       ),

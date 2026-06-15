@@ -8,6 +8,8 @@ import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../../data/repositories/storage_repository.dart';
 import '../../billing/providers/billing_provider.dart';
+import '../../subscription/services/subscription_service.dart';
+import '../../subscription/widgets/upgrade_pro_dialog.dart';
 
 class ItemsScreen extends ConsumerStatefulWidget {
   const ItemsScreen({super.key});
@@ -121,23 +123,51 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                               opacity: _fadeAnimation,
                               child: _MenuItemCard(
                                 item: filteredItems[index],
-                                onToggle: () => ref
-                                    .read(itemsProvider.notifier)
-                                    .toggleAvailability(filteredItems[index].id),
-                                onEdit: () => _showAddEditDialog(
-                                  context,
-                                  ref,
-                                  filteredItems[index],
-                                ),
-                                onDuplicate: () => ref
-                                    .read(itemsProvider.notifier)
-                                    .duplicateItem(filteredItems[index]),
-                                onDelete: () => _showDeleteConfirm(
-                                  context,
-                                  ref,
-                                  filteredItems[index],
-                                  l10n,
-                                ),
+                                onToggle: () {
+                                  final subscription = ref.read(subscriptionProvider);
+                                  if (!subscription.isActive) {
+                                    showSubscriptionExpiredDialog(context);
+                                    return;
+                                  }
+                                  ref
+                                      .read(itemsProvider.notifier)
+                                      .toggleAvailability(filteredItems[index].id);
+                                },
+                                onEdit: () {
+                                  final subscription = ref.read(subscriptionProvider);
+                                  if (!subscription.isActive) {
+                                    showSubscriptionExpiredDialog(context);
+                                    return;
+                                  }
+                                  _showAddEditDialog(
+                                    context,
+                                    ref,
+                                    filteredItems[index],
+                                  );
+                                },
+                                onDuplicate: () {
+                                  final subscription = ref.read(subscriptionProvider);
+                                  if (!subscription.isActive) {
+                                    showSubscriptionExpiredDialog(context);
+                                    return;
+                                  }
+                                  ref
+                                      .read(itemsProvider.notifier)
+                                      .duplicateItem(filteredItems[index]);
+                                },
+                                onDelete: () {
+                                  final subscription = ref.read(subscriptionProvider);
+                                  if (!subscription.isActive) {
+                                    showSubscriptionExpiredDialog(context);
+                                    return;
+                                  }
+                                  _showDeleteConfirm(
+                                    context,
+                                    ref,
+                                    filteredItems[index],
+                                    l10n,
+                                  );
+                                },
                                 primaryColor: primaryColor,
                               ),
                             );
@@ -368,7 +398,14 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
 
   Widget _buildFAB(AppLocalizations l10n, Color primaryColor) {
     return GestureDetector(
-      onTap: () => _showAddEditDialog(context, ref, null),
+      onTap: () {
+        final subscription = ref.read(subscriptionProvider);
+        if (!subscription.isActive) {
+          showSubscriptionExpiredDialog(context);
+          return;
+        }
+        _showAddEditDialog(context, ref, null);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
@@ -415,6 +452,15 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
     final barcodeController = TextEditingController(text: item?.barcode);
     String? currentImageUrl = item?.imageUrl;
     bool available = item?.isAvailable ?? true;
+
+    final subscription = ref.read(subscriptionProvider);
+    final bool isProUnlocked = subscription.planName == 'Pro' ||
+                               subscription.planName == 'Enterprise' ||
+                               subscription.planName == 'Free Trial';
+
+    final stockCountController = TextEditingController(text: item?.stockCount?.toStringAsFixed(0) ?? '0');
+    final lowStockThresholdController = TextEditingController(text: item?.lowStockThreshold?.toString() ?? '5');
+    bool trackStock = item?.trackStock ?? false;
 
     showModalBottomSheet(
       context: context,
@@ -594,6 +640,61 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        
+                        // Track Stock Toggle
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: SwitchListTile(
+                            title: const Text(
+                              'Track Stock',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
+                            subtitle: const Text(
+                              'Decrement stock automatically on checkout',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                            value: trackStock,
+                            onChanged: (val) {
+                              if (!isProUnlocked) {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => const UpgradeProDialog(featureName: 'Stock Tracking'),
+                                );
+                                return;
+                              }
+                              setModalState(() => trackStock = val);
+                            },
+                            activeThumbColor: primaryColor,
+                            contentPadding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                        
+                        if (trackStock) ...[
+                          const SizedBox(height: 16),
+                          _buildDialogTextField(
+                            controller: stockCountController,
+                            label: 'Stock Count',
+                            icon: Icons.inventory_2_rounded,
+                            keyboardType: TextInputType.number,
+                            primaryColor: primaryColor,
+                            enabled: isProUnlocked,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDialogTextField(
+                            controller: lowStockThresholdController,
+                            label: 'Low Stock Alert Threshold',
+                            icon: Icons.notifications_active_rounded,
+                            keyboardType: TextInputType.number,
+                            primaryColor: primaryColor,
+                            enabled: isProUnlocked,
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         
                         ElevatedButton(
@@ -627,6 +728,9 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                                 isAvailable: available,
                                 costPrice: item?.costPrice,
                                 barcode: barcodeController.text.isNotEmpty ? barcodeController.text : null,
+                                stockCount: trackStock ? double.tryParse(stockCountController.text) ?? 0.0 : 0.0,
+                                trackStock: trackStock,
+                                lowStockThreshold: trackStock ? int.tryParse(lowStockThresholdController.text) ?? 5 : 5,
                               );
 
                               if (item == null) {
@@ -676,20 +780,22 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
     required IconData icon,
     required Color primaryColor,
     TextInputType? keyboardType,
+    bool enabled = true,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: enabled ? Colors.grey[50] : Colors.grey[100],
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey[100]!),
       ),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        enabled: enabled,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(color: Colors.grey[500], fontSize: 13),
-          prefixIcon: Icon(icon, size: 20, color: Colors.grey[500]),
+          labelStyle: TextStyle(color: enabled ? Colors.grey[500] : Colors.grey[400], fontSize: 13),
+          prefixIcon: Icon(icon, size: 20, color: enabled ? Colors.grey[500] : Colors.grey[400]),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
@@ -798,6 +904,28 @@ class _MenuItemCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
+                            'DISABLED',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (item.trackStock && (item.stockCount ?? 0.0) <= 0.0)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
                             'OUT OF STOCK',
                             style: TextStyle(
                               fontSize: 9,
@@ -884,13 +1012,20 @@ class _MenuItemCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '₹${item.price.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      color: primaryColor,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '₹${item.price.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                          color: primaryColor,
+                        ),
+                      ),
+                      if (item.trackStock)
+                        _buildStockBadge(item),
+                    ],
                   ),
                 ],
               ),
@@ -950,6 +1085,35 @@ class _MenuItemCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStockBadge(ItemModel item) {
+    final bool isLowStock = item.stockCount != null && 
+                            item.stockCount! <= (item.lowStockThreshold ?? 5);
+    final color = isLowStock ? Colors.red : Colors.green;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(isLowStock ? Icons.warning_amber_rounded : Icons.inventory_2_rounded, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            'Stock: ${item.stockCount?.toStringAsFixed(0) ?? "0"}',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

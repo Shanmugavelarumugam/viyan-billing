@@ -5,6 +5,7 @@ import '../../../data/repositories/billing_repository.dart';
 import '../../shop_setup/providers/shop_provider.dart';
 import 'billing_provider.dart';
 import 'package:hive/hive.dart';
+import '../../subscription/services/subscription_service.dart';
 
 class CartBill {
   final String id;
@@ -134,13 +135,21 @@ class ActiveBillsNotifier extends StateNotifier<ActiveBillsState> {
     state = ActiveBillsState(bills: newBills, selectedBillId: newSelectedId);
   }
 
-  void addItem(ItemModel item) {
+  bool addItem(ItemModel item) {
     final bills = [...state.bills];
     final billIndex = bills.indexWhere((b) => b.id == state.selectedBillId);
-    if (billIndex == -1) return;
+    if (billIndex == -1) return false;
 
     final items = [...bills[billIndex].items];
     final itemIndex = items.indexWhere((i) => i.item.id == item.id);
+
+    if (item.trackStock) {
+      final currentStock = item.stockCount ?? 0.0;
+      final currentQty = itemIndex != -1 ? items[itemIndex].quantity : 0;
+      if (currentQty + 1 > currentStock) {
+        return false;
+      }
+    }
 
     if (itemIndex != -1) {
       items[itemIndex] = CartItemModel(
@@ -153,6 +162,7 @@ class ActiveBillsNotifier extends StateNotifier<ActiveBillsState> {
 
     bills[billIndex] = bills[billIndex].copyWith(items: items);
     state = ActiveBillsState(bills: bills, selectedBillId: state.selectedBillId);
+    return true;
   }
 
   void removeItem(ItemModel item) {
@@ -213,12 +223,56 @@ class ActiveBillsNotifier extends StateNotifier<ActiveBillsState> {
     }
   }
 
-  Future<void> completeBill({String? paymentMethod, String? phone}) async {
+  Future<OrderModel?> completeBill({String? paymentMethod, String? phone}) async {
     final bill = state.selectedBill;
-    if (bill.items.isEmpty) return;
+    if (bill.items.isEmpty) return null;
 
     final finalPaymentMethod = paymentMethod ?? bill.paymentMethod;
     final finalPhone = phone ?? bill.customerPhone;
+
+    // Deduct stock if Pro plan is active
+    final subscription = ref.read(subscriptionProvider);
+    final bool isProUnlocked = subscription.planName == 'Pro' ||
+                               subscription.planName == 'Enterprise' ||
+                               subscription.planName == 'Free Trial';
+
+    if (isProUnlocked) {
+      final updatedItems = <ItemModel>[];
+      final stockUpdates = <String, double>{};
+
+      for (final cartItem in bill.items) {
+        final item = cartItem.item;
+        if (item.trackStock) {
+          final currentStock = item.stockCount ?? 0.0;
+          final newStock = (currentStock - cartItem.quantity).clamp(0.0, double.infinity);
+          final updatedItem = item.copyWith(
+            stockCount: newStock,
+          );
+          updatedItems.add(updatedItem);
+          stockUpdates[item.id] = cartItem.quantity.toDouble();
+        }
+      }
+
+      if (stockUpdates.isNotEmpty) {
+        try {
+          // Deduct stock transactionally on Firestore first
+          await _billingRepository.deductStockTransactionally(stockUpdates);
+
+          // Once Firestore succeeds, update local Hive box and Riverpod state
+          for (final updatedItem in updatedItems) {
+            await ref.read(itemsProvider.notifier).updateItemLocal(updatedItem);
+          }
+        } catch (e) {
+          // Offline fallback: update local Hive directly so checkout completes successfully offline
+          for (final updatedItem in updatedItems) {
+            await ref.read(itemsProvider.notifier).updateItemLocal(updatedItem);
+            try {
+              await _billingRepository.saveItem(updatedItem);
+            } catch (_) {}
+          }
+        }
+      }
+    }
 
     // 1. Save to Reports Box
     final order = OrderModel(
@@ -256,6 +310,8 @@ class ActiveBillsNotifier extends StateNotifier<ActiveBillsState> {
     } else if (state.bills.isEmpty) {
       addBill(name: 'Token $nextToken');
     }
+
+    return order;
   }
 
   void clearCurrentBill() {

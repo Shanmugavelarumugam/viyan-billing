@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/shop_model.dart';
 import '../models/item_model.dart';
@@ -97,7 +98,38 @@ class FirestoreRepository {
       'category': item.category,
       'isAvailable': item.isAvailable,
       'imageUrl': item.imageUrl,
+      'costPrice': item.costPrice,
+      'barcode': item.barcode,
+      'stockCount': item.stockCount,
+      'trackStock': item.trackStock,
+      'lowStockThreshold': item.lowStockThreshold,
       'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deductStockTransactionally(Map<String, double> stockUpdates) async {
+    final db = _db;
+    if (uid == null || db == null) return;
+
+    await db.runTransaction((transaction) async {
+      for (final entry in stockUpdates.entries) {
+        final itemId = entry.key;
+        final deductQty = entry.value;
+
+        final docRef = db.collection('users').doc(uid).collection('items').doc(itemId);
+        final doc = await transaction.get(docRef);
+        if (doc.exists) {
+          final data = doc.data()!;
+          final trackStock = data['trackStock'] ?? false;
+          if (trackStock) {
+            final currentStock = (data['stockCount'] ?? 0.0) as num;
+            final newStock = (currentStock - deductQty).clamp(0.0, double.infinity);
+            transaction.update(docRef, {
+              'stockCount': newStock,
+            });
+          }
+        }
+      }
     });
   }
 
@@ -122,6 +154,11 @@ class FirestoreRepository {
           category: data['category'],
           isAvailable: data['isAvailable'] ?? true,
           imageUrl: data['imageUrl'],
+          costPrice: data['costPrice'] != null ? (data['costPrice'] as num).toDouble() : null,
+          barcode: data['barcode'],
+          stockCount: data['stockCount'] != null ? (data['stockCount'] as num).toDouble() : 0.0,
+          trackStock: data['trackStock'] ?? false,
+          lowStockThreshold: data['lowStockThreshold'] ?? 5,
         );
       }).toList();
     });
@@ -141,6 +178,11 @@ class FirestoreRepository {
         category: data['category'],
         isAvailable: data['isAvailable'] ?? true,
         imageUrl: data['imageUrl'],
+        costPrice: data['costPrice'] != null ? (data['costPrice'] as num).toDouble() : null,
+        barcode: data['barcode'],
+        stockCount: data['stockCount'] != null ? (data['stockCount'] as num).toDouble() : 0.0,
+        trackStock: data['trackStock'] ?? false,
+        lowStockThreshold: data['lowStockThreshold'] ?? 5,
       );
     }).toList();
   }
@@ -203,6 +245,11 @@ class FirestoreRepository {
 
     final now = DateTime.now();
 
+    // Debug logging during device trial check
+    debugPrint('Email: $email');
+    debugPrint('DeviceId: $deviceId');
+    debugPrint('Doc exists: ${doc.exists}');
+
     if (!doc.exists) {
       final trialData = {
         'deviceId': deviceId,
@@ -214,7 +261,10 @@ class FirestoreRepository {
       await docRef.set(trialData);
       return trialData;
     } else {
-      return doc.data();
+      final data = doc.data();
+      final existingEmail = data?['firstEmail'] as String?;
+      debugPrint('Firestore email: $existingEmail');
+      return data;
     }
   }
 }

@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User shop profile security - Only the owner can read/write their own profile
+    match /users/{userId}/shops/{shopDoc} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User items security - Only the owner can read/write their item catalog
+    match /users/{userId}/items/{itemId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User orders security - Only the owner can read/write their order history
+    match /users/{userId}/orders/{orderId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Trial devices tracking - Anyone authenticated can read/create, updates are disabled to prevent tampering
+    match /trial_devices/{deviceId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if false;
+    }
+  }
+}

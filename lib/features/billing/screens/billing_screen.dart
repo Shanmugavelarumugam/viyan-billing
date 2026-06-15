@@ -12,6 +12,7 @@ import '../../../data/models/shop_model.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../services/voice_billing_service.dart';
+import '../../subscription/services/subscription_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -60,6 +61,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
     final shop = ref.watch(shopProvider).shop;
     final l10n = ref.watch(localizationProvider);
     final selectedBill = state.selectedBill;
+    final subState = ref.watch(subscriptionProvider);
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
@@ -67,7 +69,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final availableItems = items.where((i) => i.isAvailable).toList();
+    final availableItems = items.where((i) => i.isAvailable && (!i.trackStock || (i.stockCount ?? 0.0) > 0)).toList();
     final filteredItems = _selectedCategory == 'All'
         ? availableItems
         : availableItems.where((i) => i.category == _selectedCategory).toList();
@@ -108,10 +110,13 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                       opacity: _fadeAnimation,
                       child: Column(
                         children: [
+                          if (subState.isGraceActive)
+                            _buildGracePeriodBanner(context, subState.graceDaysRemaining, l10n)
+                          else if (subState.isNearExpiry)
+                            _buildTrialReminderBanner(context, subState.daysRemaining, l10n),
                           _buildHeader(shop, l10n, selectedBill),
                           _buildBillSwitcher(state, ref, l10n),
                           _buildCategorySection(categories, l10n),
-                          _buildQuickItemsRow(availableItems, ref),
                         ],
                       ),
                     ),
@@ -303,22 +308,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => _showVoiceBillingSheet(context, ref, l10n),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.mic_rounded,
-                    color: _primaryColor,
-                    size: 18,
-                  ),
-                ),
-              ),
+
             ],
           ),
         ],
@@ -342,7 +332,14 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
         itemBuilder: (context, index) {
           if (index == 0) {
             return GestureDetector(
-              onTap: () => ref.read(cartProvider.notifier).addBill(),
+              onTap: () {
+                final subscription = ref.read(subscriptionProvider);
+                if (!subscription.isActive) {
+                  showSubscriptionExpiredDialog(context);
+                  return;
+                }
+                ref.read(cartProvider.notifier).addBill();
+              },
               child: Container(
                 width: 48,
                 decoration: BoxDecoration(
@@ -460,84 +457,6 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
     );
   }
 
-  Widget _buildQuickItemsRow(List<ItemModel> items, WidgetRef ref) {
-    final quickItems = items.where((i) => i.isAvailable).take(4).toList();
-
-    if (quickItems.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      height: 140,
-      margin: const EdgeInsets.only(top: 16),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: quickItems.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final item = quickItems[index];
-          return GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              ref.read(cartProvider.notifier).addItem(item);
-            },
-            child: Container(
-              width: 100,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[100]!, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: _primaryColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: _buildItemImage(item, size: 24),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '₹${item.price.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildItemsGrid(
     List<ItemModel> items,
     CartBill selectedBill,
@@ -624,10 +543,28 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
 
     return GestureDetector(
       onTap: () {
+        final subscription = ref.read(subscriptionProvider);
+        if (!subscription.isActive) {
+          showSubscriptionExpiredDialog(context);
+          return;
+        }
         HapticFeedback.lightImpact();
-        ref.read(cartProvider.notifier).addItem(item);
+        final success = ref.read(cartProvider.notifier).addItem(item);
+        if (!success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Insufficient stock for ${item.name}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       },
       onLongPress: () {
+        final subscription = ref.read(subscriptionProvider);
+        if (!subscription.isActive) {
+          showSubscriptionExpiredDialog(context);
+          return;
+        }
         HapticFeedback.mediumImpact();
         ref.read(cartProvider.notifier).removeItem(item);
       },
@@ -672,6 +609,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                         left: 8,
                         child: GestureDetector(
                           onTap: () {
+                            final subscription = ref.read(subscriptionProvider);
+                            if (!subscription.isActive) {
+                              showSubscriptionExpiredDialog(context);
+                              return;
+                            }
                             HapticFeedback.mediumImpact();
                             ref.read(cartProvider.notifier).removeItem(item);
                           },
@@ -960,7 +902,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                   label: l10n?.translate('reports') ?? 'Reports',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/reports');
+                    context.go('/reports');
                   },
                 ),
                 _buildDrawerItem(
@@ -968,7 +910,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                   label: l10n?.translate('items') ?? 'Items',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/items');
+                    context.go('/items');
                   },
                 ),
                 _buildDrawerItem(
@@ -976,7 +918,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                   label: l10n?.translate('profile') ?? 'Profile',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/profile');
+                    context.go('/profile');
                   },
                 ),
                 const Padding(
@@ -988,7 +930,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                   label: 'Settings',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/profile/edit');
+                    context.go('/profile/edit');
                   },
                 ),
               ],
@@ -1137,6 +1079,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                 const SizedBox(height: 32),
                 GestureDetector(
                   onTap: () async {
+                    final subscription = ref.read(subscriptionProvider);
+                    if (!subscription.isActive) {
+                      showSubscriptionExpiredDialog(context);
+                      return;
+                    }
                     if (isListening) {
                       await voiceService.stopListening();
                       setState(() => isListening = false);
@@ -1238,22 +1185,35 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                               ),
                             );
                           } else {
+                            int addedCount = 0;
                             for (final res in results) {
                               for (int i = 0; i < res.quantity; i++) {
-                                ref
+                                final success = ref
                                     .read(cartProvider.notifier)
                                     .addItem(res.item);
+                                if (success) {
+                                  addedCount++;
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Insufficient stock for ${res.item.name}'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                             }
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '✅ Added ${results.length} items!',
+                            if (addedCount > 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '✅ Added $addedCount items!',
+                                  ),
+                                  backgroundColor: Colors.green,
                                 ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                              );
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -1756,6 +1716,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
   }
 
   void _onBarcodeDetected(BuildContext context, WidgetRef ref, String barcode, l10n) {
+    final subscription = ref.read(subscriptionProvider);
+    if (!subscription.isActive) {
+      showSubscriptionExpiredDialog(context);
+      return;
+    }
+
     final availableItems = ref.read(itemsProvider);
     
     // Check if the barcode matches any existing item
@@ -1767,22 +1733,32 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
     if (matchedItem.id.isNotEmpty) {
       // SUCCESS: Item exists, add to cart
       HapticFeedback.mediumImpact();
-      ref.read(cartProvider.notifier).addItem(matchedItem);
+      final success = ref.read(cartProvider.notifier).addItem(matchedItem);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white),
-              const SizedBox(width: 8),
-              Text('Added ${matchedItem.name} to checkout (₹${matchedItem.price.toStringAsFixed(0)})'),
-            ],
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Added ${matchedItem.name} to checkout (₹${matchedItem.price.toStringAsFixed(0)})'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Insufficient stock for ${matchedItem.name}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } else {
       // QUICK ADD: Item does not exist. Show the Quick Add bottom sheet.
       _showQuickAddItemSheet(context, ref, barcode, l10n);
@@ -2005,6 +1981,130 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
+      ),
+    );
+  }
+
+  Widget _buildGracePeriodBanner(BuildContext context, int daysRemaining, AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange[800]!,
+            Colors.orange[600]!,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withValues(alpha: 0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              l10n.translate('grace_banner_message', args: {'days': daysRemaining.toString()}),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => context.push('/profile/renewal'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.orange[800],
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              l10n.translate('renew'),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrialReminderBanner(BuildContext context, int daysRemaining, AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.blue[800]!,
+            Colors.blue[600]!,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: Colors.white, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              l10n.translate('trial_reminder_banner_message', args: {'days': daysRemaining.toString()}),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => context.push('/profile/renewal'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.blue[800],
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              l10n.translate('renew'),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

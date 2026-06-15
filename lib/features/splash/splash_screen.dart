@@ -36,14 +36,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final logoSize = size.width * 0.45;
     final l10n = ref.watch(localizationProvider);
 
-    // If l10n is not yet loaded, use a fallback map or loader
-    if (l10n == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFFF9100),
-        body: Center(child: CircularProgressIndicator(color: Colors.white)),
-      );
-    }
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -78,7 +70,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 backgroundColor: Colors.white.withValues(alpha: 0.05),
               ),
             ),
-            
+
             // Central Content
             Center(
               child: Column(
@@ -131,10 +123,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     },
                     child: Column(
                       children: [
-                        Text(
-                          l10n.translate('app_name').toUpperCase(),
+                         Text(
+                          (l10n?.translate('app_name') ?? 'Viyan Billing').toUpperCase(),
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                          style: Theme.of(context).textTheme.displayLarge
+                              ?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 4,
@@ -143,7 +136,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          l10n.translate('fast_billing'),
+                          l10n?.translate('fast_billing') ?? '5-Sec Billing / 5 நொடியில் பில்',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.9),
                             fontSize: 14,
@@ -157,7 +150,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 ],
               ),
             ),
-            
+
             // Bottom Loading Indicator
             const Positioned(
               bottom: 50,

@@ -3,6 +3,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path/path.dart' as p;
 
 final storageRepositoryProvider = Provider((ref) => StorageRepository());
 
@@ -50,25 +52,64 @@ class StorageRepository {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Read file as bytes to use putData (more reliable for small files)
-      final bytes = await imageFile.readAsBytes();
+      // 1. Detect dynamic file extension
+      final extension = p.extension(imageFile.path).toLowerCase();
+      final validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+      final ext = validExtensions.contains(extension) ? extension : '.jpg';
       
-      // Create a reference to "shop_logos/{userId}.jpg"
-      final ref = _storage.ref().child('shop_logos').child('${user.uid}.jpg');
-      
-      debugPrint('📤 Uploading to bucket: ${_storage.app.options.storageBucket}');
+      debugPrint('ℹ️ Detected file extension: $ext');
+
+      // 2. Select compression format
+      CompressFormat compressFormat = CompressFormat.jpeg;
+      String contentType = 'image/jpeg';
+      if (ext == '.png') {
+        compressFormat = CompressFormat.png;
+        contentType = 'image/png';
+      } else if (ext == '.webp') {
+        compressFormat = CompressFormat.webp;
+        contentType = 'image/webp';
+      }
+
+      // 3. Compress the image file to target ~200KB–500KB
+      debugPrint('⚡ Compressing image at: ${imageFile.path}');
+      final Uint8List? compressedBytes = await FlutterImageCompress.compressWithFile(
+        imageFile.absolute.path,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 80,
+        format: compressFormat,
+      );
+
+      final uploadBytes = compressedBytes ?? await imageFile.readAsBytes();
+      debugPrint('⚡ Final image size for upload: ${(uploadBytes.lengthInBytes / 1024).toStringAsFixed(2)} KB');
+
+      // 4. Delete existing logo files with other extensions to prevent orphaned files
+      for (final otherExt in validExtensions) {
+        if (otherExt != ext) {
+          try {
+            final oldRef = _storage.ref().child('shop_logos').child('${user.uid}$otherExt');
+            await oldRef.delete();
+            debugPrint('🗑️ Cleaned up orphaned logo: ${oldRef.fullPath}');
+          } catch (_) {
+            // Safe to ignore file not found errors
+          }
+        }
+      }
+
+      // 5. Create reference and upload
+      final ref = _storage.ref().child('shop_logos').child('${user.uid}$ext');
       debugPrint('📤 Uploading shop logo to: ${ref.fullPath}');
 
-      // Upload the bytes
       final uploadTask = await ref.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
+        uploadBytes,
+        SettableMetadata(contentType: contentType),
       );
-      
-      // Get the download URL
+
+      // 6. Get download URL and append cache-busting version parameter
       final url = await uploadTask.ref.getDownloadURL();
-      debugPrint('✅ Shop logo uploaded: $url');
-      return url;
+      final cacheBustedUrl = '$url&v=${DateTime.now().millisecondsSinceEpoch}';
+      debugPrint('✅ Shop logo uploaded successfully: $cacheBustedUrl');
+      return cacheBustedUrl;
     } catch (e) {
       debugPrint('❌ Error uploading shop logo: $e');
       if (e is FirebaseException) {
@@ -84,8 +125,14 @@ class StorageRepository {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      final ref = _storage.ref().child('shop_logos').child('${user.uid}.jpg');
-      await ref.delete();
+      final validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+      for (final ext in validExtensions) {
+        try {
+          final ref = _storage.ref().child('shop_logos').child('${user.uid}$ext');
+          await ref.delete();
+          debugPrint('🗑️ Deleted shop logo: ${ref.fullPath}');
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint('⚠️ Error deleting shop logo: $e');
     }
