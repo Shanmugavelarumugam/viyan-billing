@@ -34,7 +34,8 @@ class TimeSyncNotifier extends StateNotifier<TimeSyncState> {
 
   Future<void> _initNotifier() async {
     await _loadFromCache();
-    await syncTime();
+    // Defer network sync to after first frame to avoid blocking startup
+    Future.microtask(() => syncTime());
   }
 
   Future<void> _loadFromCache() async {

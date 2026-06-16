@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -24,8 +25,13 @@ import '../../features/billing/providers/cart_provider.dart';
 import '../../features/billing/screens/checkout_screen.dart';
 import '../../features/subscription/services/subscription_service.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../features/printer/screens/printer_settings_screen.dart';
+import '../../features/backup/screens/backup_sync_screen.dart';
+import '../../shared/widgets/main_drawer.dart';
+import '../../shared/widgets/drawer_placeholder_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldState> mainShellScaffoldKey = GlobalKey<ScaffoldState>();
 
 // We use a Listenable to notify the router of state changes without recreating the router instance
 final routerProvider = Provider<GoRouter>((ref) {
@@ -106,6 +112,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const CheckoutScreen(),
       ),
+      GoRoute(
+        path: '/printer-settings',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const PrinterSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/backup-sync',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const BackupSyncScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             MainShell(navigationShell: navigationShell),
@@ -169,19 +185,27 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Helper class to bridge Riverpod states to GoRouter's refreshListenable
+// Helper class to bridge Riverpod states to GoRouter's refreshListenable.
+// Debounces rapid state changes to prevent redirect loops.
 class _RouterRefreshStream extends ChangeNotifier {
+  Timer? _debounce;
+
   _RouterRefreshStream(Ref ref) {
-    _subscription = ref.listen(authProvider, (_, _) => notifyListeners());
-    _shopSubscription = ref.listen(shopProvider, (_, _) => notifyListeners());
+    _subscription = ref.listen(authProvider, (_, _) => _debouncedNotify());
+    _shopSubscription = ref.listen(shopProvider, (_, _) => _debouncedNotify());
     _subStatusSubscription = ref.listen(
       subscriptionProvider,
-      (_, _) => notifyListeners(),
+      (_, _) => _debouncedNotify(),
     );
     _readOnlySubscription = ref.listen(
       readOnlyModeSelectedProvider,
-      (_, _) => notifyListeners(),
+      (_, _) => _debouncedNotify(),
     );
+  }
+
+  void _debouncedNotify() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 100), notifyListeners);
   }
 
   late final ProviderSubscription _subscription;
@@ -191,6 +215,7 @@ class _RouterRefreshStream extends ChangeNotifier {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _subscription.close();
     _shopSubscription.close();
     _subStatusSubscription.close();
@@ -396,15 +421,15 @@ class MainShell extends ConsumerWidget {
     final shadowColor = isDark ? Colors.black45 : Colors.black12;
 
     return Container(
-      height: 72,
+      height: 64, // Reduced height for better screen real estate
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(36),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
             color: shadowColor,
-            blurRadius: 25,
-            offset: const Offset(0, 8),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -428,9 +453,9 @@ class MainShell extends ConsumerWidget {
             ),
           ),
 
-          // Central "Add Bill" Action
+          // Central "Add Bill" Action - Redesigned FAB
           Transform.translate(
-            offset: const Offset(0, -12),
+            offset: const Offset(0, -14),
             child: GestureDetector(
               onTap: () {
                 final subscription = ref.read(subscriptionProvider);
@@ -443,8 +468,8 @@ class MainShell extends ConsumerWidget {
                 navigationShell.goBranch(0);
               },
               child: Container(
-                width: 60,
-                height: 60,
+                width: 56, // Smaller, more refined touch target
+                height: 56,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -458,15 +483,15 @@ class MainShell extends ConsumerWidget {
                   boxShadow: [
                     BoxShadow(
                       color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 6),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: const Icon(
-                  Icons.add_rounded,
+                  Icons.point_of_sale_rounded, // Contextual POS action icon
                   color: Colors.white,
-                  size: 32,
+                  size: 26,
                 ),
               ),
             ),
@@ -501,22 +526,23 @@ class MainShell extends ConsumerWidget {
   }) {
     final isSelected = navigationShell.currentIndex == index;
     final activeColor = theme.colorScheme.primary;
-    final inactiveColor = Colors.grey[400]!;
+    final inactiveColor = Colors.grey[500]!;
 
     return InkWell(
       onTap: () => navigationShell.goBranch(index),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6), // Tighter padding
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
               color: isSelected ? activeColor : inactiveColor,
-              size: 24,
+              size: 22, // Scaled down icon for better density
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2), // Reduced spacing
             Text(
               label,
               maxLines: 1,
@@ -524,7 +550,7 @@ class MainShell extends ConsumerWidget {
               style: TextStyle(
                 color: isSelected ? activeColor : inactiveColor,
                 fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
             ),
           ],

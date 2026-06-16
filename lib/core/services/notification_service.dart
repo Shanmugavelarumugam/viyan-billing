@@ -4,23 +4,42 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter/foundation.dart';
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  static bool _initialized = false;
 
   static Future<void> init() async {
+    if (_initialized) return;
     try {
-      const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+      tz.initializeTimeZones();
+
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const DarwinInitializationSettings initializationSettingsIOS =
+          DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
       );
-      const InitializationSettings initializationSettings = InitializationSettings(
+      const InitializationSettings initializationSettings =
+          InitializationSettings(
         android: initializationSettingsAndroid,
         iOS: initializationSettingsIOS,
       );
-      
-      tz.initializeTimeZones();
+
       await _notificationsPlugin.initialize(initializationSettings);
+
+      // Request notification permission on Android 13+
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final androidPlugin = _notificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        if (androidPlugin != null) {
+          await androidPlugin.requestNotificationsPermission();
+        }
+      }
+
+      _initialized = true;
       debugPrint("🔔 Notification service initialized successfully.");
     } catch (e) {
       debugPrint("⚠️ Failed to initialize notifications: $e");
@@ -33,6 +52,10 @@ class NotificationService {
     required String body,
     required DateTime scheduledDate,
   }) async {
+    if (!_initialized) {
+      debugPrint("⚠️ Notification service not initialized. Skipping schedule.");
+      return;
+    }
     try {
       if (scheduledDate.isBefore(DateTime.now())) return;
 
@@ -56,7 +79,8 @@ class NotificationService {
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
       debugPrint("🔔 Scheduled notification $id for $scheduledDate");
     } catch (e) {

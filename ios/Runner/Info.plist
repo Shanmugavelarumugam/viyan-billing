@@ -74,5 +74,9 @@
 	<string>This app requires camera access to let you take photos of your menu items directly.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app uses speech recognition to parse your spoken orders into billing items.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app requires Bluetooth access to scan, connect, and print receipts to your thermal printer.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app requires Bluetooth access to scan, connect, and print receipts to your thermal printer.</string>
 </dict>
 </plist>

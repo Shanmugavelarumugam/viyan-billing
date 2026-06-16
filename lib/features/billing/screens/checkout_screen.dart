@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
 import '../../../data/models/order_model.dart';
+import '../widgets/sale_success_dialog.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -11,6 +11,8 @@ import '../../shop_setup/providers/shop_provider.dart';
 import '../../../core/localization/localization_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../data/models/shop_model.dart';
+import '../../printer/providers/printer_provider.dart';
+import '../../printer/services/printer_service.dart';
 import '../services/whatsapp_service.dart';
 import '../../../core/services/razorpay_service.dart';
 import '../../subscription/services/subscription_service.dart';
@@ -88,177 +90,55 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   void _showSuccessDialog(OrderModel order) {
     HapticFeedback.heavyImpact();
-    bool dismissedManually = false;
 
-    final dismissTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (!dismissedManually && mounted) {
-        Navigator.of(context).pop(); // dismiss dialog
-        Navigator.of(context).pop(); // pop checkout screen
-      }
-    });
+    // Auto print if autoPrintAfterSale is enabled
+    final settingsState = ref.read(printerSettingsProvider);
+    final printerService = ref.read(printerServiceProvider);
+    final shop = ref.read(shopProvider).shop;
+
+    if (settingsState.settings.autoPrintAfterSale && settingsState.connectionStatus.isConnected) {
+      printerService.printOrder(
+        order: order,
+        settings: settingsState.settings,
+        storeName: shop?.name,
+      );
+    }
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        final primaryColor = Theme.of(context).colorScheme.primary;
-        return PopScope(
-          canPop: false, // Prevent back button during auto-dismiss
-          child: Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-            elevation: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.check_circle_rounded,
-                      color: Colors.green,
-                      size: 48,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Sale Completed',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Invoice:',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '#${order.tokenNumber}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Items:',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '${order.items.fold(0, (sum, item) => sum + item.quantity)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Amount:',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '₹${order.total.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Divider(color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Printing invoice...'),
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.print_rounded, size: 18),
-                          label: const Text('Print'),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: primaryColor),
-                            foregroundColor: primaryColor,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            dismissedManually = true;
-                            dismissTimer.cancel();
-                            Navigator.of(context).pop(); // Pop Dialog
-                            Navigator.of(context).pop(); // Pop Checkout Screen
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Done',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+      builder: (_) => SaleSuccessDialog(
+        order: order,
+        onPrint: () async {
+          HapticFeedback.lightImpact();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Printing invoice...'),
+              duration: Duration(seconds: 1),
             ),
-          ),
-        );
-      },
-    );
+          );
+          
+          final success = await printerService.printOrder(
+            order: order,
+            settings: settingsState.settings,
+            storeName: shop?.name,
+          );
+          
+          if (!success && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Print failed. Check printer connection.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+      ),
+    ).then((_) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   void _showErrorDialog(String error) {
@@ -474,87 +354,97 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     AppLocalizations? l10n,
   ) {
     final isPaid = bill.isPaid;
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: cs.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
               ),
               child: Icon(
                 Icons.arrow_back_rounded,
-                color: primaryColor,
-                size: 22,
+                color: cs.onSurface,
+                size: 20,
               ),
             ),
           ),
           const Spacer(),
-          Flexible(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'TOKEN',
-                    style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w700,
-                      color: primaryColor.withValues(alpha: 0.7),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      bill.name,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: primaryColor.withOpacity(0.15)),
             ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isPaid
-                    ? Colors.green.withValues(alpha: 0.1)
-                    : Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    isPaid ? 'PAID' : 'PENDING',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isPaid ? Colors.green : Colors.orange,
-                      letterSpacing: 0.5,
-                    ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.token_rounded, size: 14, color: primaryColor),
+                const SizedBox(width: 6),
+                Text(
+                  bill.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
                   ),
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isPaid
+                  ? Colors.green.withOpacity(0.08)
+                  : Colors.orange.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isPaid
+                    ? Colors.green.withOpacity(0.2)
+                    : Colors.orange.withOpacity(0.2),
               ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: isPaid ? Colors.green : Colors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isPaid ? 'PAID' : 'PENDING',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isPaid ? Colors.green : Colors.orange,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -567,15 +457,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     Color primaryColor,
     AppLocalizations? l10n,
   ) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -583,160 +475,193 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Row(
               children: [
                 Container(
-                  width: 3,
-                  height: 12,
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.receipt_long_rounded,
                     color: primaryColor,
-                    borderRadius: BorderRadius.circular(2),
+                    size: 16,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
                   'ORDER SUMMARY',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey[600],
-                    letterSpacing: 0.8,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurfaceVariant.withOpacity(0.8),
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: cs.outlineVariant.withOpacity(0.4)),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             padding: const EdgeInsets.all(20),
             itemCount: bill.items.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 16),
+            separatorBuilder: (_, __) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Divider(height: 1, color: cs.outlineVariant.withOpacity(0.2)),
+            ),
             itemBuilder: (context, index) {
               final item = bill.items[index];
-              return Row(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            ref
-                                .read(cartProvider.notifier)
-                                .removeItem(item.item);
-                            setState(() {});
-                          },
-                          icon: Icon(
-                            Icons.remove_rounded,
-                            size: 16,
-                            color: primaryColor,
-                          ),
-                        ),
-                        Text(
-                          '${item.quantity}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                            color: primaryColor,
-                          ),
-                        ),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            final success = ref.read(cartProvider.notifier).addItem(item.item);
-                            if (!success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Insufficient stock for ${item.item.name}'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            } else {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref
+                                  .read(cartProvider.notifier)
+                                  .removeItem(item.item);
                               setState(() {});
-                            }
-                          },
-                          icon: Icon(
-                            Icons.add_rounded,
-                            size: 16,
-                            color: primaryColor,
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 2,
+                                  )
+                                ]
+                              ),
+                              child: Icon(
+                                Icons.remove_rounded,
+                                size: 14,
+                                color: cs.onSurface,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.item.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: Color(0xFF1E293B),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              '${item.quantity}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: cs.onSurface,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '₹${item.item.price.toStringAsFixed(0)} each',
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 11,
+                          GestureDetector(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              final success = ref.read(cartProvider.notifier).addItem(item.item);
+                              if (!success) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Insufficient stock for ${item.item.name}'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              } else {
+                                setState(() {});
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 2,
+                                  )
+                                ]
+                              ),
+                              child: Icon(
+                                Icons.add_rounded,
+                                size: 14,
+                                color: cs.onSurface,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Text(
-                    '₹${item.total.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Color(0xFF1E293B),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.item.name,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '₹${item.item.price.toStringAsFixed(0)} each',
+                            style: TextStyle(
+                              color: cs.onSurfaceVariant.withOpacity(0.6),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    Text(
+                      '₹${item.total.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: cs.outlineVariant.withOpacity(0.4)),
           Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Total',
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     fontSize: 16,
-                    color: Color(0xFF1E293B),
+                    color: cs.onSurface,
                   ),
                 ),
                 Text(
                   '₹${bill.total.toStringAsFixed(0)}',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 24,
                     color: primaryColor,
                   ),
                 ),
@@ -749,15 +674,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   }
 
   Widget _buildPaymentMethods(Color primaryColor, l10n) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -765,25 +692,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Row(
               children: [
                 Container(
-                  width: 3,
-                  height: 12,
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.payment_rounded,
                     color: primaryColor,
-                    borderRadius: BorderRadius.circular(2),
+                    size: 16,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
                   'PAYMENT METHOD',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey[600],
-                    letterSpacing: 0.8,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurfaceVariant.withOpacity(0.8),
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -795,30 +726,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
               children: [
                 Expanded(
                   child: _buildPaymentOption(
-                    title: 'Cash',
-                    icon: Icons.money_rounded,
-                    isSelected: _selectedPaymentMethod == 'cash',
-                    onTap: () =>
-                        setState(() {
-                          _selectedPaymentMethod = 'cash';
-                          _showQR = false;
-                        }),
-                    color: Colors.green,
+                     title: 'Cash',
+                     icon: Icons.money_rounded,
+                     isSelected: _selectedPaymentMethod == 'cash',
+                     onTap: () => setState(() {
+                       _selectedPaymentMethod = 'cash';
+                       _showQR = false;
+                     }),
+                     color: Colors.green,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _buildPaymentOption(
-                    title: 'UPI',
-                    icon: Icons.qr_code_scanner_rounded,
-                    isSelected: _selectedPaymentMethod == 'upi',
-                    onTap: () {
-                      setState(() {
-                        _selectedPaymentMethod = 'upi';
-                        _showQR = true;
-                      });
-                    },
-                    color: Colors.blue,
+                     title: 'UPI',
+                     icon: Icons.qr_code_scanner_rounded,
+                     isSelected: _selectedPaymentMethod == 'upi',
+                     onTap: () {
+                       setState(() {
+                         _selectedPaymentMethod = 'upi';
+                         _showQR = true;
+                       });
+                     },
+                     color: Colors.blue,
                   ),
                 ),
               ],
@@ -836,29 +766,44 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     required VoidCallback onTap,
     required Color color,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.1) : Colors.grey[50],
-          borderRadius: BorderRadius.circular(14),
+          color: isSelected ? color.withOpacity(0.06) : cs.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? color : Colors.grey[200]!,
-            width: isSelected ? 2 : 1,
+            color: isSelected ? color : cs.outlineVariant.withOpacity(0.4),
+            width: isSelected ? 2.0 : 1.0,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? color : Colors.grey[400], size: 24),
-            const SizedBox(height: 6),
+            Icon(
+              icon,
+              color: isSelected ? color : cs.onSurfaceVariant.withOpacity(0.6),
+              size: 26,
+            ),
+            const SizedBox(height: 8),
             Text(
               title,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? color : Colors.grey[600],
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? color : cs.onSurfaceVariant.withOpacity(0.8),
               ),
             ),
           ],
@@ -872,16 +817,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     dynamic bill,
     Color primaryColor,
   ) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -893,21 +840,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
               Row(
                 children: [
                   Container(
-                    width: 3,
-                    height: 12,
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.qr_code_2_rounded,
                       color: primaryColor,
-                      borderRadius: BorderRadius.circular(2),
+                      size: 16,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Text(
                     'SCAN & PAY',
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey[600],
-                      letterSpacing: 0.8,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurfaceVariant.withOpacity(0.8),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
@@ -915,15 +866,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
               GestureDetector(
                 onTap: () => setState(() => _showQR = false),
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
+                    color: cs.surfaceContainerHighest.withOpacity(0.5),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.close_rounded,
-                    size: 16,
-                    color: Colors.grey[600],
+                    size: 14,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -932,23 +883,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
           const SizedBox(height: 20),
           Center(
             child: Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withOpacity(0.04),
                     blurRadius: 20,
-                    offset: const Offset(0, 4),
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
               child: QrImageView(
-                data:
-                    'upi://pay?pa=${shop?.upiId ?? ''}&pn=${Uri.encodeComponent(shop?.name ?? '')}&am=${bill.total.toStringAsFixed(2)}&cu=INR',
+                data: 'upi://pay?pa=${shop?.upiId ?? ''}&pn=${Uri.encodeComponent(shop?.name ?? '')}&am=${bill.total.toStringAsFixed(2)}&cu=INR',
                 version: QrVersions.auto,
-                size: 180.0,
+                size: 160.0,
+                eyeStyle: QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: cs.onSurface,
+                ),
+                dataModuleStyle: QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: cs.onSurface,
+                ),
               ),
             ),
           ),
@@ -957,8 +916,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
             shop?.upiId ?? '',
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
               color: primaryColor,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -967,15 +927,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   }
 
   Widget _buildCustomerSection(Color primaryColor, l10n) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -983,25 +945,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Row(
               children: [
                 Container(
-                  width: 3,
-                  height: 12,
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.people_alt_rounded,
                     color: primaryColor,
-                    borderRadius: BorderRadius.circular(2),
+                    size: 16,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
                   'CUSTOMER DETAILS',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey[600],
-                    letterSpacing: 0.8,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurfaceVariant.withOpacity(0.8),
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -1009,64 +975,65 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[100]!),
+            child: TextField(
+              controller: _nameController,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: cs.onSurface,
               ),
-              child: TextField(
-                controller: _nameController,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                  color: Color(0xFF1E293B),
+              decoration: InputDecoration(
+                labelText: 'Customer Name (Optional)',
+                labelStyle: TextStyle(color: cs.onSurfaceVariant.withOpacity(0.7), fontSize: 14),
+                prefixIcon: Icon(
+                  Icons.person_rounded,
+                  color: primaryColor.withOpacity(0.7),
+                  size: 20,
                 ),
-                decoration: InputDecoration(
-                  hintText: 'Customer Name (Optional)',
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                  border: InputBorder.none,
-                  prefixIcon: Icon(
-                    Icons.person_rounded,
-                    color: primaryColor,
-                    size: 20,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                filled: true,
+                fillColor: cs.surfaceContainerLowest,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: primaryColor, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[100]!),
+            child: TextField(
+              controller: _phoneController,
+              onChanged: (val) => ref.read(cartProvider.notifier).setCustomerPhone(val),
+              keyboardType: TextInputType.phone,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: cs.onSurface,
               ),
-              child: TextField(
-                controller: _phoneController,
-                onChanged: (val) =>
-                    ref.read(cartProvider.notifier).setCustomerPhone(val),
-                keyboardType: TextInputType.phone,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                  color: Color(0xFF1E293B),
+              decoration: InputDecoration(
+                labelText: 'Customer Phone Number',
+                labelStyle: TextStyle(color: cs.onSurfaceVariant.withOpacity(0.7), fontSize: 14),
+                prefixIcon: Icon(
+                  Icons.phone_rounded,
+                  color: primaryColor.withOpacity(0.7),
+                  size: 20,
                 ),
-                decoration: InputDecoration(
-                  hintText: 'Customer Phone Number',
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                  border: InputBorder.none,
-                  prefixIcon: Icon(
-                    Icons.phone_rounded,
-                    color: primaryColor,
-                    size: 20,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                filled: true,
+                fillColor: cs.surfaceContainerLowest,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: primaryColor, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
             ),
           ),
@@ -1083,167 +1050,164 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     ShopModel? shop,
   ) {
     final hasPhone = _phoneController.text.trim().isNotEmpty;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 20,
-            offset: const Offset(0, -4),
+            offset: const Offset(0, -6),
           ),
         ],
+        border: Border(
+          top: BorderSide(color: cs.outlineVariant.withOpacity(0.3)),
+        ),
       ),
       child: SafeArea(
         child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  if (hasPhone && shop != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Builder(
-                        builder: (context) => Container(
-                          height: 52,
-                          width: 52,
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.green.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            surfaceTintColor: Colors.transparent,
-                            child: InkWell(
-                              onTap: () async {
-                                final subscription = ref.read(
-                                  subscriptionProvider,
-                                );
-                                if (!subscription.isActive) {
-                                  showSubscriptionExpiredDialog(context);
-                                  return;
-                                }
-                                HapticFeedback.heavyImpact();
-                                final box =
-                                    context.findRenderObject() as RenderBox?;
-                                final rect = box != null
-                                    ? box.localToGlobal(Offset.zero) & box.size
-                                    : null;
+              if (hasPhone && shop != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Builder(
+                    builder: (context) => Container(
+                      height: 56,
+                      width: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF25D366).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: const Color(0xFF25D366).withOpacity(0.2),
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            final subscription = ref.read(subscriptionProvider);
+                            if (!subscription.isActive) {
+                              showSubscriptionExpiredDialog(context);
+                              return;
+                            }
+                            HapticFeedback.heavyImpact();
+                            final box = context.findRenderObject() as RenderBox?;
+                            final rect = box != null
+                                ? box.localToGlobal(Offset.zero) & box.size
+                                : null;
 
-                                try {
-                                  await WhatsappService.sendBill(
-                                    shop: shop,
-                                    cart: bill.items,
-                                    total: bill.total,
-                                    token: token,
-                                    phone: _phoneController.text.trim(),
-                                    customerName: _nameController.text.trim(),
-                                    sharePositionOrigin: rect,
-                                  );
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('❌ $e'),
-                                        backgroundColor: Colors.red,
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(16),
-                              child: const Center(
-                                child: FaIcon(
-                                  FontAwesomeIcons.whatsapp,
-                                  color: Colors.green,
-                                  size: 28,
-                                ),
-                              ),
+                            try {
+                              await WhatsappService.sendBill(
+                                shop: shop,
+                                cart: bill.items,
+                                total: bill.total,
+                                token: token,
+                                phone: _phoneController.text.trim(),
+                                customerName: _nameController.text.trim(),
+                                sharePositionOrigin: rect,
+                              );
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('❌ $e'),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(18),
+                          child: const Center(
+                            child: FaIcon(
+                              FontAwesomeIcons.whatsapp,
+                              color: Color(0xFF25D366),
+                              size: 26,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isProcessing
-                          ? null
-                          : () async {
-                              final subscription = ref.read(subscriptionProvider);
-                              if (!subscription.isActive) {
-                                showSubscriptionExpiredDialog(context);
-                                return;
-                              }
-                              HapticFeedback.mediumImpact();
-                              setState(() => _isProcessing = true);
-                              try {
-                                final order = await ref
-                                    .read(cartProvider.notifier)
-                                    .completeBill(
-                                      paymentMethod: _selectedPaymentMethod == 'cash'
-                                          ? 'Cash'
-                                          : 'UPI',
-                                      phone: _phoneController.text.trim(),
-                                    );
-                                if (order != null) {
-                                  _showSuccessDialog(order);
-                                } else {
-                                  throw Exception('Order could not be generated.');
-                                }
-                              } catch (e) {
-                                debugPrint('❌ Error during checkout: $e');
-                                _showErrorDialog(e.toString());
-                              } finally {
-                                if (mounted) {
-                                  setState(() => _isProcessing = false);
-                                }
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                        shadowColor: primaryColor.withValues(alpha: 0.4),
-                      ),
-                      child: _isProcessing
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 3,
-                              ),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'COMPLETE',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Icon(Icons.arrow_forward_rounded, size: 16),
-                              ],
-                            ),
                     ),
                   ),
-                ],
+                ),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isProcessing
+                        ? null
+                        : () async {
+                            final subscription = ref.read(subscriptionProvider);
+                            if (!subscription.isActive) {
+                              showSubscriptionExpiredDialog(context);
+                              return;
+                            }
+                            HapticFeedback.mediumImpact();
+                            setState(() => _isProcessing = true);
+                            try {
+                              final order = await ref
+                                  .read(cartProvider.notifier)
+                                  .completeBill(
+                                    paymentMethod: _selectedPaymentMethod == 'cash'
+                                        ? 'Cash'
+                                        : 'UPI',
+                                    phone: _phoneController.text.trim(),
+                                  );
+                              if (order != null) {
+                                _showSuccessDialog(order);
+                              } else {
+                                throw Exception('Order could not be generated.');
+                              }
+                            } catch (e) {
+                              debugPrint('❌ Error during checkout: $e');
+                              _showErrorDialog(e.toString());
+                            } finally {
+                              if (mounted) {
+                                  setState(() => _isProcessing = false);
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shadowColor: primaryColor.withOpacity(0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            ),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'COMPLETE TRANSACTION',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward_rounded, size: 16),
+                            ],
+                          ),
+                  ),
+                ),
               ),
             ],
           ),

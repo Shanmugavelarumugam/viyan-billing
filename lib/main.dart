@@ -7,9 +7,11 @@ import 'core/routes/app_router.dart';
 import 'data/models/shop_model.dart';
 import 'data/models/item_model.dart';
 import 'data/models/order_model.dart';
+import 'features/printer/models/printer_settings_model.dart';
 
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'core/services/notification_service.dart';
 
 void main() async {
@@ -93,14 +95,20 @@ void _registerAdapters() {
   if (!Hive.isAdapterRegistered(3)) {
     Hive.registerAdapter(OrderModelAdapter());
   }
+  if (!Hive.isAdapterRegistered(4)) {
+    Hive.registerAdapter(PrinterSettingsModelAdapter());
+  }
 }
 
 Future<void> _openBoxes() async {
-  // Open boxes individually so we can handle migration errors per-box
-  await _openBoxSafely<ShopModel>('shop_box');
-  await _openBoxSafely<ItemModel>('items_box');
-  await _openBoxSafely<OrderModel>('orders_box');
-  await _openBoxSafely<dynamic>('settings_box');
+  // Open boxes in parallel for faster startup
+  await Future.wait([
+    _openBoxSafely<ShopModel>('shop_box'),
+    _openBoxSafely<ItemModel>('items_box'),
+    _openBoxSafely<OrderModel>('orders_box'),
+    _openBoxSafely<dynamic>('settings_box'),
+    _openBoxSafely<PrinterSettingsModel>('printer_box'),
+  ]);
   debugPrint("✅ Hive boxes opened");
 }
 
@@ -149,6 +157,8 @@ Future<void> _initializeFirebase() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // Enable App Check for Firebase abuse protection
+    await FirebaseAppCheck.instance.activate();
     debugPrint("✅ Firebase initialized successfully");
   } on FirebaseException catch (e) {
     if (e.code == 'duplicate-app') {

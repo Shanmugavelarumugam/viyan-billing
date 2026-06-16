@@ -46,11 +46,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     _autoSync();
   }
 
-  void _autoSync() async {
-    final box = Hive.box<OrderModel>('orders_box');
-    if (box.isEmpty) {
-      _syncOrders();
-    }
+  void _autoSync() {
+    // Defer Hive read to after first frame to avoid blocking startup
+    Future.microtask(() async {
+      if (!mounted) return;
+      final box = Hive.box<OrderModel>('orders_box');
+      if (box.isEmpty) {
+        _syncOrders();
+      }
+    });
   }
 
   Future<void> _syncOrders() async {
@@ -615,44 +619,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     List<OrderModel> orders,
     Color primaryColor,
   ) {
-    final totalSales = orders.fold(0.0, (sum, o) => sum + o.total);
-    double totalCost = 0.0;
-    for (var order in orders) {
-      for (var cartItem in order.items) {
-        totalCost +=
-            (cartItem.item.costPrice ?? cartItem.item.price * 0.6) *
-            cartItem.quantity;
-      }
-    }
-    final profit = totalSales - totalCost;
-    final profitMargin = totalSales > 0 ? (profit / totalSales) * 100 : 0;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatCard(
-              title: 'PROFIT',
-              value: '₹${profit.toStringAsFixed(0)}',
-              icon: Icons.trending_up_rounded,
-              color: Colors.green,
-              primaryColor: primaryColor,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildStatCard(
-              title: 'MARGIN',
-              value: '${profitMargin.toStringAsFixed(1)}%',
-              icon: Icons.pie_chart_rounded,
-              color: Colors.blue,
-              primaryColor: primaryColor,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   Widget _buildStatCard({

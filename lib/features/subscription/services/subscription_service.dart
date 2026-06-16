@@ -138,17 +138,15 @@ Widget _buildFeatureItem(BuildContext context, String text) {
 
 class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   final Ref _ref;
+  DateTime? _lastScheduledExpiry;
 
   SubscriptionNotifier(this._ref) : super(SubscriptionState.initial()) {
-    // Listen to shopState changes to update the subscription status
     _ref.listen<ShopState>(shopProvider, (previous, next) {
       _updateStatus(next);
     });
-    // Listen to timeSyncState changes to react to clock changes/blacklisting/offline verification
     _ref.listen<TimeSyncState>(timeSyncProvider, (previous, next) {
       _updateStatus(_ref.read(shopProvider));
     });
-    // Init state with current value
     _updateStatus(_ref.read(shopProvider));
   }
 
@@ -194,24 +192,27 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
         final daysRemaining = (remaining.inMinutes / (24 * 60)).ceil();
         final isNearExpiry = daysRemaining <= 3;
 
-        // Schedule reminders
-        final expiry3DaysBefore = expiry.subtract(const Duration(days: 3));
-        final expiry1DayBefore = expiry.subtract(const Duration(days: 1));
-        
-        NotificationService.cancelAll().then((_) {
-          NotificationService.scheduleNotification(
-            id: 1,
-            title: "Free trial ending soon",
-            body: "Your free trial ends in 3 days. Renew now to continue billing.",
-            scheduledDate: expiry3DaysBefore,
-          );
-          NotificationService.scheduleNotification(
-            id: 2,
-            title: "Free trial ending tomorrow",
-            body: "Your free trial ends tomorrow. Renew now to avoid read-only mode.",
-            scheduledDate: expiry1DayBefore,
-          );
-        });
+        // Schedule reminders only if expiry date changed
+        if (_lastScheduledExpiry == null ||
+            _lastScheduledExpiry!.difference(expiry).inMinutes.abs() > 1) {
+          _lastScheduledExpiry = expiry;
+          final expiry3DaysBefore = expiry.subtract(const Duration(days: 3));
+          final expiry1DayBefore = expiry.subtract(const Duration(days: 1));
+          NotificationService.cancelAll().then((_) {
+            NotificationService.scheduleNotification(
+              id: 1,
+              title: "Free trial ending soon",
+              body: "Your free trial ends in 3 days. Renew now to continue billing.",
+              scheduledDate: expiry3DaysBefore,
+            );
+            NotificationService.scheduleNotification(
+              id: 2,
+              title: "Free trial ending tomorrow",
+              body: "Your free trial ends tomorrow. Renew now to avoid read-only mode.",
+              scheduledDate: expiry1DayBefore,
+            );
+          });
+        }
 
         state = SubscriptionState(
           isActive: true,

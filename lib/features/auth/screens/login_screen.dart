@@ -47,16 +47,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   void _loadSavedEmail() {
-    final box = Hive.box('settings_box');
-    final savedEmail = box.get('saved_email') as String?;
-    final rememberMe = box.get('remember_me', defaultValue: false) as bool;
+    // Defer Hive read to after first frame to avoid blocking startup
+    Future.microtask(() {
+      if (!mounted) return;
+      final box = Hive.box('settings_box');
+      final savedEmail = box.get('saved_email') as String?;
+      final rememberMe = box.get('remember_me', defaultValue: false) as bool;
 
-    if (rememberMe && savedEmail != null) {
-      setState(() {
-        _emailController.text = savedEmail;
-        _rememberMe = true;
-      });
-    }
+      if (rememberMe && savedEmail != null) {
+        setState(() {
+          _emailController.text = savedEmail;
+          _rememberMe = true;
+        });
+      }
+    });
   }
 
   @override

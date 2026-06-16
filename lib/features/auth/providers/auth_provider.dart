@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firebase_auth_service.dart';
 import '../../../data/repositories/auth_repository.dart';
 
@@ -11,9 +13,10 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _authRepository;
+  StreamSubscription<User?>? _authSubscription;
 
   AuthNotifier(this._authRepository) : super(AuthState.initial()) {
-    _authRepository.authStateChanges.listen((user) {
+    _authSubscription = _authRepository.authStateChanges.listen((user) {
       if (user != null) {
         state = state.copyWith(
           isAuthenticated: true,
@@ -24,6 +27,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = AuthState.initial();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> login(String email, String password) async {

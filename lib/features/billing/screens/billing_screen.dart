@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,7 @@ import '../../subscription/services/subscription_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class BillingScreen extends ConsumerStatefulWidget {
   const BillingScreen({super.key});
@@ -35,6 +37,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
   @override
   void initState() {
     super.initState();
+    
+    debugPrint('📱 Items screen opened');
+    try {
+      final box = Hive.box<ItemModel>('items_box');
+      debugPrint('📦 Hive count: ${box.length}');
+    } catch (e) {
+      debugPrint('⚠️ Error reading Hive box count: $e');
+    }
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -56,32 +67,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(cartProvider);
-    final items = ref.watch(itemsProvider);
-    final shop = ref.watch(shopProvider).shop;
-    final l10n = ref.watch(localizationProvider);
-    final selectedBill = state.selectedBill;
-    final subState = ref.watch(subscriptionProvider);
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
-    if (l10n == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    final availableItems = items.where((i) => i.isAvailable && (!i.trackStock || (i.stockCount ?? 0.0) > 0)).toList();
-    final filteredItems = _selectedCategory == 'All'
-        ? availableItems
-        : availableItems.where((i) => i.category == _selectedCategory).toList();
-
-    final categories = [
-      'All',
-      ...items.map((i) => i.category ?? 'Uncategorized').toSet(),
-    ];
-
     return Scaffold(
       key: _scaffoldKey,
-      drawer: _buildDrawer(context, shop, l10n),
+      drawer: Consumer(builder: (context, ref, _) {
+        final shop = ref.watch(shopProvider.select((s) => s.shop));
+        final l10n = ref.watch(localizationProvider);
+        if (l10n == null) return const SizedBox();
+        return _buildDrawer(context, shop, l10n);
+      }),
       backgroundColor: const Color(0xFFF8FAFC),
       body: Container(
         decoration: BoxDecoration(
@@ -98,10 +94,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // Decorative background circles
               ..._buildBackgroundCircles(),
-
-              // Main content
               CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
@@ -110,47 +103,71 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                       opacity: _fadeAnimation,
                       child: Column(
                         children: [
-                          if (subState.isGraceActive)
-                            _buildGracePeriodBanner(context, subState.graceDaysRemaining, l10n)
-                          else if (subState.isNearExpiry)
-                            _buildTrialReminderBanner(context, subState.daysRemaining, l10n),
-                          _buildHeader(shop, l10n, selectedBill),
-                          _buildBillSwitcher(state, ref, l10n),
-                          _buildCategorySection(categories, l10n),
+                          Consumer(builder: (context, ref, _) {
+                            final subState = ref.watch(subscriptionProvider);
+                            final l10n = ref.watch(localizationProvider);
+                            if (l10n == null) return const SizedBox();
+                            if (subState.isGraceActive) {
+                              return _buildGracePeriodBanner(context, subState.graceDaysRemaining, l10n);
+                            } else if (subState.isNearExpiry) {
+                              return _buildTrialReminderBanner(context, subState.daysRemaining, l10n);
+                            }
+                            return const SizedBox();
+                          }),
+                          Consumer(builder: (context, ref, _) {
+                            final shop = ref.watch(shopProvider.select((s) => s.shop));
+                            final bill = ref.watch(cartProvider.select((s) => s.selectedBill));
+                            final l10n = ref.watch(localizationProvider);
+                            if (l10n == null) return const SizedBox();
+                            return _buildHeader(shop, l10n, bill);
+                          }),
+                          Consumer(builder: (context, ref, _) {
+                            final state = ref.watch(cartProvider);
+                            final l10n = ref.watch(localizationProvider);
+                            if (l10n == null) return const SizedBox();
+                            return _buildBillSwitcher(state, ref, l10n);
+                          }),
+                          Consumer(builder: (context, ref, _) {
+                            final categories = ref.watch(itemCategoriesProvider);
+                            final l10n = ref.watch(localizationProvider);
+                            if (l10n == null) return const SizedBox();
+                            return _buildCategorySection(categories, l10n);
+                          }),
                         ],
                       ),
                     ),
                   ),
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
-                      20,
-                      16,
-                      20,
+                      20, 16, 20,
                       120 + MediaQuery.paddingOf(context).bottom,
                     ),
-                    sliver: _buildItemsGrid(
-                      filteredItems,
-                      selectedBill,
-                      ref,
-                      isTablet,
-                    ),
+                    sliver: Consumer(builder: (context, ref, _) {
+                      final filteredItems = ref.watch(filteredItemsProvider(_selectedCategory));
+                      final bill = ref.watch(cartProvider.select((s) => s.selectedBill));
+                      return _buildItemsGrid(filteredItems, bill, ref, isTablet);
+                    }),
                   ),
                 ],
               ),
-
-              // Floating cart
-              if (selectedBill.items.isNotEmpty)
-                Positioned(
+              // Floating cart — independent consumer so it rebuilds without touching the grid
+              Consumer(builder: (context, ref, _) {
+                final bill = ref.watch(cartProvider.select((s) => s.selectedBill));
+                if (bill.items.isEmpty) return const SizedBox();
+                final shop = ref.watch(shopProvider.select((s) => s.shop));
+                final l10n = ref.watch(localizationProvider);
+                return Positioned(
                   left: 0,
                   right: 0,
                   bottom: 16 + MediaQuery.paddingOf(context).bottom,
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 600),
-                      child: _buildFloatingCart(ref, selectedBill, shop, l10n),
+                      child: _buildFloatingCart(ref, bill, shop, l10n),
                     ),
                   ),
-                ),
+                );
+              }),
             ],
           ),
         ),
@@ -890,35 +907,42 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
                 _buildDrawerItem(
-                  icon: Icons.receipt_long_rounded,
-                  label: l10n?.translate('billing') ?? 'Billing',
+                  icon: Icons.print_rounded,
+                  label: 'Printer Settings',
                   onTap: () {
                     Navigator.pop(context);
-                  },
-                  isSelected: true,
-                ),
-                _buildDrawerItem(
-                  icon: Icons.bar_chart_rounded,
-                  label: l10n?.translate('reports') ?? 'Reports',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/reports');
+                    context.push('/printer-settings');
                   },
                 ),
                 _buildDrawerItem(
-                  icon: Icons.inventory_2_rounded,
-                  label: l10n?.translate('items') ?? 'Items',
+                  icon: Icons.card_membership_rounded,
+                  label: 'Subscription',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/items');
+                    context.push('/profile/renewal');
                   },
                 ),
                 _buildDrawerItem(
-                  icon: Icons.person_rounded,
-                  label: l10n?.translate('profile') ?? 'Profile',
+                  icon: Icons.cloud_sync_rounded,
+                  label: 'Backup & Sync',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/profile');
+                    context.push('/backup-sync');
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.notifications_rounded,
+                  label: 'Notifications',
+                  onTap: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.settings_rounded,
+                  label: 'App Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/profile/edit');
                   },
                 ),
                 const Padding(
@@ -926,11 +950,29 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
                   child: Divider(),
                 ),
                 _buildDrawerItem(
-                  icon: Icons.settings_rounded,
-                  label: 'Settings',
+                  icon: Icons.help_outline_rounded,
+                  label: 'Help & Support',
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/profile/edit');
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.info_outline_rounded,
+                  label: 'About App',
+                  onTap: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(),
+                ),
+                _buildDrawerItem(
+                  icon: Icons.logout_rounded,
+                  label: 'Logout',
+                  onTap: () {
+                    Navigator.pop(context);
+                    ref.read(authProvider.notifier).logout();
                   },
                 ),
               ],
@@ -954,49 +996,70 @@ class _BillingScreenState extends ConsumerState<BillingScreen>
   Widget _buildDrawerHeader(ShopModel? shop) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(24, 60 + MediaQuery.paddingOf(context).top, 24, 24),
+      padding: EdgeInsets.fromLTRB(16, 48 + MediaQuery.paddingOf(context).top, 16, 16),
       decoration: BoxDecoration(
         color: _primaryColor.withValues(alpha: 0.05),
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.2), width: 1),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
             child: Icon(
               Icons.store_rounded,
               color: _primaryColor,
-              size: 32,
+              size: 24,
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            shop?.name ?? 'Your Shop',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            shop?.address ?? 'Store Address',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[500],
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  shop?.name ?? 'Your Shop',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Admin / Cashier',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: _primaryColor,
+                  ),
+                ),
+                Text(
+                  'Store: ${shop?.name ?? "MAIN"}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
