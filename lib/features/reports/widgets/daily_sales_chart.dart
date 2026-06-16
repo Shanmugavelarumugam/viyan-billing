@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -55,18 +56,7 @@ class _DailySalesChartState extends State<DailySalesChart>
 
     return Container(
       height: 240,
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
       child: Column(
         children: [
           Expanded(
@@ -108,7 +98,7 @@ class _DailySalesChartState extends State<DailySalesChart>
               },
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: widget.dates
@@ -118,9 +108,9 @@ class _DailySalesChartState extends State<DailySalesChart>
                       DateFormat('E').format(d).toUpperCase(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
                         color: Colors.grey[400],
                       ),
                     ),
@@ -134,7 +124,8 @@ class _DailySalesChartState extends State<DailySalesChart>
   }
 
   void _updateHover(Offset localPosition, BoxConstraints constraints) {
-    final widthPerItem = constraints.maxWidth / (widget.dailyTotals.length - 1);
+    final widthPerItem =
+        constraints.maxWidth / (widget.dailyTotals.length - 1);
     final index = (localPosition.dx / widthPerItem).round().clamp(
       0,
       widget.dailyTotals.length - 1,
@@ -145,31 +136,53 @@ class _DailySalesChartState extends State<DailySalesChart>
   }
 
   Widget _buildTooltip(BoxConstraints constraints, double maxVal) {
-    final widthPerItem = constraints.maxWidth / (widget.dailyTotals.length - 1);
+    final widthPerItem =
+        constraints.maxWidth / (widget.dailyTotals.length - 1);
     final x = _hoveredIndex! * widthPerItem;
     final val = widget.dailyTotals[_hoveredIndex!];
-    final y =
-        constraints.maxHeight -
+    final y = constraints.maxHeight -
         (constraints.maxHeight * (val / (maxVal == 0 ? 1 : maxVal)));
 
+    final showLeft = x > constraints.maxWidth / 2;
+
     return Positioned(
-      left: x - 40,
-      top: y - 50,
+      left: showLeft ? null : max(0, x - 36),
+      right: showLeft ? max(0, constraints.maxWidth - x - 36) : null,
+      top: max(0, y - 48),
       child: Container(
-        width: 80,
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.circular(8),
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Text(
-          '₹${val.toStringAsFixed(0)}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              DateFormat('MMM dd').format(widget.dates[_hoveredIndex!]),
+              style: TextStyle(
+                fontSize: 8,
+                color: Colors.white.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '₹${val.toStringAsFixed(0)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -198,9 +211,6 @@ class LineChartPainter extends CustomPainter {
     final double effectiveMax = maxVal == 0 ? 1 : maxVal;
     final double widthPerItem = size.width / (data.length - 1);
 
-    final path = Path();
-    final areaPath = Path();
-
     final points = <Offset>[];
     for (int i = 0; i < data.length; i++) {
       final x = i * widthPerItem;
@@ -208,15 +218,29 @@ class LineChartPainter extends CustomPainter {
       points.add(Offset(x, y));
     }
 
-    // 1. Fill Area with Gradient
-    areaPath.moveTo(points[0].dx, size.height);
-    for (int i = 0; i < points.length; i++) {
+    final animatedLength = (data.length * animationValue).toInt();
+    final visiblePoints = points.sublist(0, animatedLength);
+
+    if (visiblePoints.isEmpty) return;
+
+    final paintArea = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          primaryColor.withValues(alpha: 0.25 * animationValue),
+          primaryColor.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final areaPath = Path();
+    areaPath.moveTo(visiblePoints.first.dx, size.height);
+    for (int i = 0; i < visiblePoints.length; i++) {
       if (i == 0) {
-        areaPath.lineTo(points[i].dx, points[i].dy);
+        areaPath.lineTo(visiblePoints[i].dx, visiblePoints[i].dy);
       } else {
-        // Smooth Cubic Bezier
-        final prev = points[i - 1];
-        final curr = points[i];
+        final prev = visiblePoints[i - 1];
+        final curr = visiblePoints[i];
         final controlX = (prev.dx + curr.dx) / 2;
         areaPath.cubicTo(
           controlX,
@@ -228,54 +252,51 @@ class LineChartPainter extends CustomPainter {
         );
       }
     }
-    areaPath.lineTo(points.last.dx, size.height);
+    areaPath.lineTo(visiblePoints.last.dx, size.height);
     areaPath.close();
-
-    final paintArea = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          primaryColor.withValues(alpha: 0.3 * animationValue),
-          primaryColor.withValues(alpha: 0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
     canvas.drawPath(areaPath, paintArea);
 
-    // 2. Draw the Smooth Line
-    path.moveTo(points[0].dx, points[0].dy);
-    for (int i = 1; i < points.length; i++) {
-      final prev = points[i - 1];
-      final curr = points[i];
+    final linePath = Path();
+    linePath.moveTo(visiblePoints.first.dx, visiblePoints.first.dy);
+    for (int i = 1; i < visiblePoints.length; i++) {
+      final prev = visiblePoints[i - 1];
+      final curr = visiblePoints[i];
       final controlX = (prev.dx + curr.dx) / 2;
-      path.cubicTo(controlX, prev.dy, controlX, curr.dy, curr.dx, curr.dy);
+      linePath.cubicTo(
+        controlX,
+        prev.dy,
+        controlX,
+        curr.dy,
+        curr.dx,
+        curr.dy,
+      );
     }
 
     final paintLine = Paint()
       ..color = primaryColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
+      ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    // Animate path reveal
-    // Note: To truly animate the reveal length we'd need a bit more logic,
-    // but opacity + scale usually looks great for custom paints.
-    canvas.drawPath(path, paintLine);
+    canvas.drawPath(linePath, paintLine);
 
-    // 3. Draw Dots
+    final glowPaint = Paint()
+      ..color = primaryColor.withValues(alpha: 0.25)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
     final dotPaint = Paint()..color = primaryColor;
     final whitePaint = Paint()..color = Colors.white;
-    final glowPaint = Paint()..color = primaryColor.withValues(alpha: 0.2);
 
-    for (int i = 0; i < points.length; i++) {
+    for (int i = 0; i < visiblePoints.length; i++) {
       final isHovered = hoveredIndex == i;
-      final radius = isHovered ? 6.0 : 4.0;
+      final radius = isHovered ? 6.0 : 3.5;
 
-      canvas.drawCircle(points[i], radius + 4, glowPaint);
-      canvas.drawCircle(points[i], radius, dotPaint);
-      canvas.drawCircle(points[i], radius - 2, whitePaint);
+      if (isHovered) {
+        canvas.drawCircle(visiblePoints[i], radius + 6, glowPaint);
+      }
+      canvas.drawCircle(visiblePoints[i], radius, dotPaint);
+      canvas.drawCircle(visiblePoints[i], radius - 1.5, whitePaint);
     }
   }
 

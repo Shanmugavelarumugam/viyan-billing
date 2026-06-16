@@ -415,142 +415,92 @@ class MainShell extends ConsumerWidget {
     l10n,
   ) {
     final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark
-        ? theme.colorScheme.surfaceContainerHigh
-        : Colors.white;
+    final bgColor = isDark ? theme.colorScheme.surfaceContainerHigh : Colors.white;
     final shadowColor = isDark ? Colors.black45 : Colors.black12;
 
     return Container(
-      height: 64, // Reduced height for better screen real estate
+      height: 66,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(33),
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 15,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: shadowColor, blurRadius: 15, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Expanded(
-            child: _buildNavItem(
-              index: 0,
-              icon: Icons.receipt_long_rounded,
-              label: l10n?.translate('billing') ?? 'Billing',
-              theme: theme,
-            ),
-          ),
-          Expanded(
-            child: _buildNavItem(
-              index: 1,
-              icon: Icons.bar_chart_rounded,
-              label: l10n?.translate('reports') ?? 'Reports',
-              theme: theme,
-            ),
-          ),
+          Expanded(child: _buildNavItem(0, Icons.receipt_long_rounded, l10n?.translate('billing') ?? 'Billing', theme)),
+          Expanded(child: _buildNavItem(1, Icons.bar_chart_rounded, l10n?.translate('reports') ?? 'Reports', theme)),
 
-          // Central "Add Bill" Action - Redesigned FAB
-          Transform.translate(
-            offset: const Offset(0, -14),
-            child: GestureDetector(
-              onTap: () {
-                final subscription = ref.read(subscriptionProvider);
-                if (!subscription.isActive) {
-                  showSubscriptionExpiredDialog(context);
-                  return;
-                }
-                // Quick add bill and switch to home
-                ref.read(cartProvider.notifier).addBill();
-                navigationShell.goBranch(0);
-              },
-              child: Container(
-                width: 56, // Smaller, more refined touch target
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.primary.withValues(alpha: 0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          GestureDetector(
+            onTap: () {
+              final subscription = ref.read(subscriptionProvider);
+              if (!subscription.isActive) { showSubscriptionExpiredDialog(context); return; }
+              ref.read(cartProvider.notifier).addBill();
+              navigationShell.goBranch(0);
+            },
+            child: Container(
+              width: 48,
+              height: 48,
+              margin: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.8)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                    blurRadius: 6, offset: const Offset(0, 3),
                   ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.point_of_sale_rounded, // Contextual POS action icon
-                  color: Colors.white,
-                  size: 26,
-                ),
+                ],
               ),
+              child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
             ),
           ),
 
-          Expanded(
-            child: _buildNavItem(
-              index: 2,
-              icon: Icons.inventory_2_rounded,
-              label: l10n?.translate('items') ?? 'Items',
-              theme: theme,
-            ),
-          ),
-          Expanded(
-            child: _buildNavItem(
-              index: 3,
-              icon: Icons.person_rounded,
-              label: l10n?.translate('profile') ?? 'Profile',
-              theme: theme,
-            ),
-          ),
+          Expanded(child: _buildNavItem(2, Icons.inventory_2_rounded, l10n?.translate('items') ?? 'Items', theme)),
+          Expanded(child: _buildNavItem(3, Icons.person_rounded, l10n?.translate('profile') ?? 'Profile', theme)),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem({
-    required int index,
-    required IconData icon,
-    required String label,
-    required ThemeData theme,
-  }) {
+  Widget _buildNavItem(int index, IconData icon, String label, ThemeData theme) {
     final isSelected = navigationShell.currentIndex == index;
     final activeColor = theme.colorScheme.primary;
-    final inactiveColor = Colors.grey[500]!;
+    final inactiveColor = Colors.grey[400]!;
 
     return InkWell(
       onTap: () => navigationShell.goBranch(index),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6), // Tighter padding
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: isSelected ? activeColor : inactiveColor,
-              size: 22, // Scaled down icon for better density
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                if (isSelected)
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: activeColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                Icon(icon, color: isSelected ? activeColor : inactiveColor, size: 20),
+              ],
             ),
-            const SizedBox(height: 2), // Reduced spacing
+            const SizedBox(height: 2),
             Text(
               label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: isSelected ? activeColor : inactiveColor,
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 9,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ],
