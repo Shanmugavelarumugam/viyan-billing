@@ -849,28 +849,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     );
   }
 
-  Widget _buildBackupTile(AppLocalizations loc, Color primaryColor) {
-    return _buildMenuItem(
-      icon: Icons.cloud_sync_rounded,
-      color: Colors.teal,
-      title: loc.translate('cloud_backup'),
-      subtitle: loc.translate('backup_active'),
-      trailing: const Icon(
-        Icons.check_circle_rounded,
-        color: Colors.teal,
-        size: 20,
-      ),
-      onTap: () {
-        final subscription = ref.read(subscriptionProvider);
-        if (!subscription.isActive) {
-          showSubscriptionExpiredDialog(context);
-          return;
-        }
-      },
-      showDivider: false,
-    );
-  }
-
   Widget _buildSupportTile(AppLocalizations loc, Color primaryColor) {
     return _buildMenuItem(
       icon: FontAwesomeIcons.whatsapp,

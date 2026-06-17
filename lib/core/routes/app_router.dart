@@ -26,9 +26,7 @@ import '../../features/billing/screens/checkout_screen.dart';
 import '../../features/subscription/services/subscription_service.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/printer/screens/printer_settings_screen.dart';
-import '../../features/backup/screens/backup_sync_screen.dart';
 import '../../shared/widgets/main_drawer.dart';
-import '../../shared/widgets/drawer_placeholder_screen.dart';
 import '../../features/items/screens/stock_management_screen.dart';
 import '../../features/profile/screens/help_support_screen.dart';
 
@@ -119,11 +117,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const PrinterSettingsScreen(),
       ),
-      GoRoute(
-        path: '/backup-sync',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BackupSyncScreen(),
-      ),
+
       GoRoute(
         path: '/stock-management',
         parentNavigatorKey: _rootNavigatorKey,
