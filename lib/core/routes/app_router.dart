@@ -29,6 +29,8 @@ import '../../features/printer/screens/printer_settings_screen.dart';
 import '../../features/backup/screens/backup_sync_screen.dart';
 import '../../shared/widgets/main_drawer.dart';
 import '../../shared/widgets/drawer_placeholder_screen.dart';
+import '../../features/items/screens/stock_management_screen.dart';
+import '../../features/profile/screens/help_support_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldState> mainShellScaffoldKey = GlobalKey<ScaffoldState>();
@@ -121,6 +123,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/backup-sync',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const BackupSyncScreen(),
+      ),
+      GoRoute(
+        path: '/stock-management',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const StockManagementScreen(),
+      ),
+      GoRoute(
+        path: '/help-support',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const HelpSupportScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

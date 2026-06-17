@@ -79,19 +79,20 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
             ],
           ),
         ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              // Decorative circles in background
-              ..._buildBackgroundCircles(primaryColor),
-              
-              // Main content
-              CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: FadeTransition(
-                      opacity: _fadeAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                // Decorative circles in background
+                ..._buildBackgroundCircles(primaryColor),
+                
+                // Main content
+                CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  cacheExtent: 300.0,
+                  slivers: [
+                    SliverToBoxAdapter(
                       child: Column(
                         children: [
                           _buildHeader(l10n, primaryColor),
@@ -99,18 +100,14 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                         ],
                       ),
                     ),
-                  ),
-                  if (filteredItems.isEmpty)
-                    SliverToBoxAdapter(
-                      child: FadeTransition(
-                        opacity: _fadeAnimation,
+                    if (filteredItems.isEmpty)
+                      SliverToBoxAdapter(
                         child: _buildEmptyState(l10n, primaryColor),
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(20, 16, 20, 100 + MediaQuery.paddingOf(context).bottom),
-                      sliver: SliverGrid(
+                      )
+                    else
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(20, 16, 20, 100 + MediaQuery.paddingOf(context).bottom),
+                        sliver: SliverGrid(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: isTablet ? 3 : 2,
                           childAspectRatio: 0.60,
@@ -119,8 +116,7 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
-                            return FadeTransition(
-                              opacity: _fadeAnimation,
+                            return RepaintBoundary(
                               child: _MenuItemCard(
                                 item: filteredItems[index],
                                 onToggle: () {
@@ -189,8 +185,9 @@ class _ItemsScreenState extends ConsumerState<ItemsScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   List<Widget> _buildBackgroundCircles(Color primaryColor) {
     return [
@@ -940,31 +937,25 @@ class _MenuItemCard extends StatelessWidget {
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: BackdropFilter(
-                        filter: ColorFilter.mode(Colors.black.withValues(alpha: 0.1), BlendMode.darken),
-                        child: Container(
-                          height: 32,
-                          width: 32,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: PopupMenuButton(
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
-                            color: Colors.white,
-                            elevation: 8,
-                            offset: const Offset(0, 40),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            itemBuilder: (context) => [
-                              _buildPopupItem(Icons.edit_rounded, 'Edit', Colors.blue, onEdit),
-                              _buildPopupItem(Icons.copy_rounded, 'Duplicate', Colors.purple, onDuplicate),
-                              _buildPopupItem(Icons.delete_rounded, 'Delete', Colors.red, onDelete),
-                            ],
-                          ),
-                        ),
+                    child: Container(
+                      height: 32,
+                      width: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: PopupMenuButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
+                        color: Colors.white,
+                        elevation: 8,
+                        offset: const Offset(0, 40),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        itemBuilder: (context) => [
+                          _buildPopupItem(Icons.edit_rounded, 'Edit', Colors.blue, onEdit),
+                          _buildPopupItem(Icons.copy_rounded, 'Duplicate', Colors.purple, onDuplicate),
+                          _buildPopupItem(Icons.delete_rounded, 'Delete', Colors.red, onDelete),
+                        ],
                       ),
                     ),
                   ),

@@ -50,20 +50,11 @@ class MainDrawer extends ConsumerWidget {
                   primaryColor: primaryColor,
                 ),
                 _buildDrawerItem(
-                  icon: Icons.cloud_sync_rounded,
-                  label: 'Backup & Sync',
+                  icon: Icons.inventory_2_rounded,
+                  label: 'Stock Management',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/backup-sync');
-                  },
-                  primaryColor: primaryColor,
-                ),
-                _buildDrawerItem(
-                  icon: Icons.notifications_rounded,
-                  label: 'Notifications',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push('/notifications');
+                    context.push('/stock-management');
                   },
                   primaryColor: primaryColor,
                 ),
@@ -72,7 +63,7 @@ class MainDrawer extends ConsumerWidget {
                   label: 'App Settings',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/profile/edit');
+                    context.go('/profile');
                   },
                   primaryColor: primaryColor,
                 ),
@@ -95,7 +86,7 @@ class MainDrawer extends ConsumerWidget {
                   label: 'About App',
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/about-app');
+                    _showAboutDialog(context);
                   },
                   primaryColor: primaryColor,
                 ),
@@ -262,6 +253,58 @@ class MainDrawer extends ConsumerWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         hoverColor: isDestructive ? primaryColor.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            const Icon(Icons.info_rounded, color: Colors.blue),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'About Viyan Billing',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.blue[900],
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Version: 1.0.0+1',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Viyan Billing is a premium POS and inventory management solution designed for modern business owners.',
+            ),
+            SizedBox(height: 12),
+            Text('© 2026 Viyan Technologies. All rights reserved.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'CLOSE',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
