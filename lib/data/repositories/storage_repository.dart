@@ -17,8 +17,12 @@ class StorageRepository {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
+      final bucket = _storage.app.options.storageBucket;
+      debugPrint('ℹ️ Firebase Storage Bucket: $bucket');
+
       // Create a reference to "items/{userId}/{itemId}.jpg"
       final ref = _storage.ref().child('items').child(user.uid).child('$itemId.jpg');
+      debugPrint('📤 Uploading item image to: ${ref.fullPath}');
 
       // Upload the bytes
       final uploadTask = await ref.putData(
@@ -31,6 +35,10 @@ class StorageRepository {
       return downloadUrl;
     } catch (e) {
       debugPrint('❌ Error uploading image: $e');
+      if (e is FirebaseException) {
+        debugPrint('   Firebase Storage Error Code: ${e.code}');
+        debugPrint('   Firebase Storage Error Message: ${e.message}');
+      }
       return null;
     }
   }
@@ -41,9 +49,21 @@ class StorageRepository {
       if (user == null) return;
 
       final ref = _storage.ref().child('items').child(user.uid).child('$itemId.jpg');
-      await ref.delete();
+      
+      try {
+        // Check if the object exists first
+        await ref.getMetadata();
+        await ref.delete();
+        debugPrint('🗑️ Deleted item image: ${ref.fullPath}');
+      } on FirebaseException catch (e) {
+        if (e.code == 'object-not-found') {
+          debugPrint('ℹ️ No item image found at ${ref.fullPath} (Skip delete)');
+        } else {
+          debugPrint('⚠️ Firebase error checking/deleting ${ref.fullPath}: ${e.code} - ${e.message}');
+        }
+      }
     } catch (e) {
-      debugPrint('⚠️ Error deleting image (might not exist): $e');
+      debugPrint('⚠️ Error deleting image: $e');
     }
   }
 
@@ -51,6 +71,12 @@ class StorageRepository {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
+
+      final bucket = _storage.app.options.storageBucket;
+      debugPrint('ℹ️ Firebase Storage Bucket: $bucket');
+      if (bucket == null || bucket.isEmpty) {
+        debugPrint('⚠️ Warning: Firebase Storage bucket is empty or null in Firebase options.');
+      }
 
       // 1. Detect dynamic file extension
       final extension = p.extension(imageFile.path).toLowerCase();
@@ -72,31 +98,23 @@ class StorageRepository {
 
       // 3. Compress the image file to target ~200KB–500KB
       debugPrint('⚡ Compressing image at: ${imageFile.path}');
-      final Uint8List? compressedBytes = await FlutterImageCompress.compressWithFile(
-        imageFile.absolute.path,
-        minWidth: 800,
-        minHeight: 800,
-        quality: 80,
-        format: compressFormat,
-      );
+      Uint8List? compressedBytes;
+      try {
+        compressedBytes = await FlutterImageCompress.compressWithFile(
+          imageFile.absolute.path,
+          minWidth: 800,
+          minHeight: 800,
+          quality: 80,
+          format: compressFormat,
+        );
+      } catch (e) {
+        debugPrint('⚠️ Image compression failed, using original file bytes: $e');
+      }
 
       final uploadBytes = compressedBytes ?? await imageFile.readAsBytes();
       debugPrint('⚡ Final image size for upload: ${(uploadBytes.lengthInBytes / 1024).toStringAsFixed(2)} KB');
 
-      // 4. Delete existing logo files with other extensions to prevent orphaned files
-      for (final otherExt in validExtensions) {
-        if (otherExt != ext) {
-          try {
-            final oldRef = _storage.ref().child('shop_logos').child('${user.uid}$otherExt');
-            await oldRef.delete();
-            debugPrint('🗑️ Cleaned up orphaned logo: ${oldRef.fullPath}');
-          } catch (_) {
-            // Safe to ignore file not found errors
-          }
-        }
-      }
-
-      // 5. Create reference and upload
+      // 4. Create reference and upload
       final ref = _storage.ref().child('shop_logos').child('${user.uid}$ext');
       debugPrint('📤 Uploading shop logo to: ${ref.fullPath}');
 
@@ -105,19 +123,50 @@ class StorageRepository {
         SettableMetadata(contentType: contentType),
       );
 
-      // 6. Get download URL and append cache-busting version parameter
+      // 5. Get download URL and append cache-busting version parameter
       final url = await uploadTask.ref.getDownloadURL();
       final cacheBustedUrl = '$url&v=${DateTime.now().millisecondsSinceEpoch}';
       debugPrint('✅ Shop logo uploaded successfully: $cacheBustedUrl');
+
+      // 6. Delete existing logo files with other extensions safely in the background
+      _cleanupOrphanedLogos(user.uid, ext, validExtensions);
+
       return cacheBustedUrl;
     } catch (e) {
       debugPrint('❌ Error uploading shop logo: $e');
       if (e is FirebaseException) {
-        debugPrint('   Code: ${e.code}');
-        debugPrint('   Message: ${e.message}');
+        debugPrint('   Firebase Storage Error Code: ${e.code}');
+        debugPrint('   Firebase Storage Error Message: ${e.message}');
       }
       return null;
     }
+  }
+
+  // Safe background cleanup helper that checks metadata first
+  void _cleanupOrphanedLogos(String userId, String currentExt, List<String> validExtensions) {
+    Future.microtask(() async {
+      for (final otherExt in validExtensions) {
+        if (otherExt != currentExt) {
+          try {
+            final oldRef = _storage.ref().child('shop_logos').child('$userId$otherExt');
+            try {
+              await oldRef.getMetadata();
+              await oldRef.delete();
+              debugPrint('🗑️ Cleaned up orphaned logo: ${oldRef.fullPath}');
+            } on FirebaseException catch (fe) {
+              if (fe.code == 'object-not-found') {
+                // Ignore quietly as it is expected
+                debugPrint('ℹ️ No orphaned logo found at ${oldRef.fullPath} (Skip delete)');
+              } else {
+                debugPrint('⚠️ Firebase error checking/deleting ${oldRef.fullPath}: ${fe.code} - ${fe.message}');
+              }
+            }
+          } catch (e) {
+            debugPrint('⚠️ Unexpected error cleaning up orphaned logo: $e');
+          }
+        }
+      }
+    });
   }
 
   Future<void> deleteShopLogo() async {
@@ -129,8 +178,15 @@ class StorageRepository {
       for (final ext in validExtensions) {
         try {
           final ref = _storage.ref().child('shop_logos').child('${user.uid}$ext');
-          await ref.delete();
-          debugPrint('🗑️ Deleted shop logo: ${ref.fullPath}');
+          try {
+            await ref.getMetadata();
+            await ref.delete();
+            debugPrint('🗑️ Deleted shop logo: ${ref.fullPath}');
+          } on FirebaseException catch (fe) {
+            if (fe.code != 'object-not-found') {
+              debugPrint('⚠️ Error deleting ${ref.fullPath}: ${fe.code} - ${fe.message}');
+            }
+          }
         } catch (_) {}
       }
     } catch (e) {

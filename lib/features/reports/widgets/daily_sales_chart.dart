@@ -26,7 +26,7 @@ class _DailySalesChartState extends State<DailySalesChart>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
     _animation = CurvedAnimation(
@@ -63,12 +63,31 @@ class _DailySalesChartState extends State<DailySalesChart>
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return GestureDetector(
-                  onPanUpdate: (details) =>
-                      _updateHover(details.localPosition, constraints),
-                  onTapDown: (details) =>
-                      _updateHover(details.localPosition, constraints),
-                  onPanEnd: (_) => setState(() => _hoveredIndex = null),
-                  onTapUp: (_) => setState(() => _hoveredIndex = null),
+                  behavior: HitTestBehavior.opaque,
+                  onPanUpdate: (details) {
+                    final widthPerItem = constraints.maxWidth / widget.dailyTotals.length;
+                    final index = (details.localPosition.dx / widthPerItem).floor().clamp(
+                      0,
+                      widget.dailyTotals.length - 1,
+                    );
+                    if (index != _hoveredIndex) {
+                      setState(() => _hoveredIndex = index);
+                    }
+                  },
+                  onTapDown: (details) {
+                    final widthPerItem = constraints.maxWidth / widget.dailyTotals.length;
+                    final index = (details.localPosition.dx / widthPerItem).floor().clamp(
+                      0,
+                      widget.dailyTotals.length - 1,
+                    );
+                    setState(() {
+                      if (_hoveredIndex == index) {
+                        _hoveredIndex = null;
+                      } else {
+                        _hoveredIndex = index;
+                      }
+                    });
+                  },
                   child: Stack(
                     children: [
                       AnimatedBuilder(
@@ -79,7 +98,7 @@ class _DailySalesChartState extends State<DailySalesChart>
                               constraints.maxWidth,
                               constraints.maxHeight,
                             ),
-                            painter: LineChartPainter(
+                            painter: BarChartPainter(
                               data: widget.dailyTotals,
                               maxVal: maxVal,
                               animationValue: _animation.value,
@@ -123,22 +142,9 @@ class _DailySalesChartState extends State<DailySalesChart>
     );
   }
 
-  void _updateHover(Offset localPosition, BoxConstraints constraints) {
-    final widthPerItem =
-        constraints.maxWidth / (widget.dailyTotals.length - 1);
-    final index = (localPosition.dx / widthPerItem).round().clamp(
-      0,
-      widget.dailyTotals.length - 1,
-    );
-    if (index != _hoveredIndex) {
-      setState(() => _hoveredIndex = index);
-    }
-  }
-
   Widget _buildTooltip(BoxConstraints constraints, double maxVal) {
-    final widthPerItem =
-        constraints.maxWidth / (widget.dailyTotals.length - 1);
-    final x = _hoveredIndex! * widthPerItem;
+    final widthPerItem = constraints.maxWidth / widget.dailyTotals.length;
+    final x = _hoveredIndex! * widthPerItem + (widthPerItem / 2);
     final val = widget.dailyTotals[_hoveredIndex!];
     final y = constraints.maxHeight -
         (constraints.maxHeight * (val / (maxVal == 0 ? 1 : maxVal)));
@@ -189,14 +195,14 @@ class _DailySalesChartState extends State<DailySalesChart>
   }
 }
 
-class LineChartPainter extends CustomPainter {
+class BarChartPainter extends CustomPainter {
   final List<double> data;
   final double maxVal;
   final double animationValue;
   final Color primaryColor;
   final int? hoveredIndex;
 
-  LineChartPainter({
+  BarChartPainter({
     required this.data,
     required this.maxVal,
     required this.animationValue,
@@ -206,102 +212,63 @@ class LineChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (data.length < 2) return;
+    if (data.isEmpty) return;
 
     final double effectiveMax = maxVal == 0 ? 1 : maxVal;
-    final double widthPerItem = size.width / (data.length - 1);
+    final double totalWidth = size.width;
+    final double numBars = data.length.toDouble();
 
-    final points = <Offset>[];
+    // Calculate width of each bar and spacing
+    final double barWidth = (totalWidth / numBars) * 0.6; // 60% of slot width
+    final double spacing = (totalWidth / numBars) * 0.4; // 40% of slot width
+
     for (int i = 0; i < data.length; i++) {
-      final x = i * widthPerItem;
-      final y = size.height - (size.height * (data[i] / effectiveMax));
-      points.add(Offset(x, y));
-    }
+      final double val = data[i];
+      final double barHeight = size.height * (val / effectiveMax) * animationValue;
 
-    final animatedLength = (data.length * animationValue).toInt();
-    final visiblePoints = points.sublist(0, animatedLength);
+      final double left = i * (barWidth + spacing) + (spacing / 2);
+      final double top = size.height - barHeight;
+      final double right = left + barWidth;
+      final double bottom = size.height;
 
-    if (visiblePoints.isEmpty) return;
-
-    final paintArea = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          primaryColor.withValues(alpha: 0.25 * animationValue),
-          primaryColor.withValues(alpha: 0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final areaPath = Path();
-    areaPath.moveTo(visiblePoints.first.dx, size.height);
-    for (int i = 0; i < visiblePoints.length; i++) {
-      if (i == 0) {
-        areaPath.lineTo(visiblePoints[i].dx, visiblePoints[i].dy);
-      } else {
-        final prev = visiblePoints[i - 1];
-        final curr = visiblePoints[i];
-        final controlX = (prev.dx + curr.dx) / 2;
-        areaPath.cubicTo(
-          controlX,
-          prev.dy,
-          controlX,
-          curr.dy,
-          curr.dx,
-          curr.dy,
-        );
-      }
-    }
-    areaPath.lineTo(visiblePoints.last.dx, size.height);
-    areaPath.close();
-    canvas.drawPath(areaPath, paintArea);
-
-    final linePath = Path();
-    linePath.moveTo(visiblePoints.first.dx, visiblePoints.first.dy);
-    for (int i = 1; i < visiblePoints.length; i++) {
-      final prev = visiblePoints[i - 1];
-      final curr = visiblePoints[i];
-      final controlX = (prev.dx + curr.dx) / 2;
-      linePath.cubicTo(
-        controlX,
-        prev.dy,
-        controlX,
-        curr.dy,
-        curr.dx,
-        curr.dy,
+      final rect = Rect.fromLTRB(left, top, right, bottom);
+      // Give the bar rounded top corners
+      final rrect = RRect.fromRectAndCorners(
+        rect,
+        topLeft: const Radius.circular(6),
+        topRight: const Radius.circular(6),
+        bottomLeft: Radius.zero,
+        bottomRight: Radius.zero,
       );
-    }
 
-    final paintLine = Paint()
-      ..color = primaryColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawPath(linePath, paintLine);
-
-    final glowPaint = Paint()
-      ..color = primaryColor.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-
-    final dotPaint = Paint()..color = primaryColor;
-    final whitePaint = Paint()..color = Colors.white;
-
-    for (int i = 0; i < visiblePoints.length; i++) {
       final isHovered = hoveredIndex == i;
-      final radius = isHovered ? 6.0 : 3.5;
 
+      // Paint with a beautiful vertical gradient
+      final paint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            isHovered ? primaryColor : primaryColor.withValues(alpha: 0.85),
+            primaryColor.withValues(alpha: isHovered ? 0.4 : 0.15),
+          ],
+        ).createShader(rect);
+
+      canvas.drawRRect(rrect, paint);
+
+      // If hovered, draw a subtle highlight border/glow
       if (isHovered) {
-        canvas.drawCircle(visiblePoints[i], radius + 6, glowPaint);
+        final borderPaint = Paint()
+          ..color = primaryColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5;
+        canvas.drawRRect(rrect, borderPaint);
       }
-      canvas.drawCircle(visiblePoints[i], radius, dotPaint);
-      canvas.drawCircle(visiblePoints[i], radius - 1.5, whitePaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant LineChartPainter oldDelegate) {
+  bool shouldRepaint(covariant BarChartPainter oldDelegate) {
     return oldDelegate.animationValue != animationValue ||
         oldDelegate.hoveredIndex != hoveredIndex;
   }

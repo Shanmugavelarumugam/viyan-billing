@@ -158,7 +158,10 @@ Future<void> _initializeFirebase() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     // Enable App Check for Firebase abuse protection
-    await FirebaseAppCheck.instance.activate();
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+    );
     debugPrint("✅ Firebase initialized successfully");
   } on FirebaseException catch (e) {
     if (e.code == 'duplicate-app') {
