@@ -54,6 +54,9 @@ class FirestoreRepository {
       'subscriptionPlan': shop.subscriptionPlan,
       'subscriptionExpiry': shop.subscriptionExpiry?.toIso8601String(),
       'profilePhotoPath': shop.profilePhotoPath,
+      'phone': shop.phone,
+      'gstNumber': shop.gstNumber,
+      'logoPath': shop.logoPath,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -83,6 +86,9 @@ class FirestoreRepository {
           ? DateTime.tryParse(data['subscriptionExpiry']) 
           : null,
       profilePhotoPath: data['profilePhotoPath'],
+      phone: data['phone'],
+      gstNumber: data['gstNumber'],
+      logoPath: data['logoPath'],
     );
   }
 

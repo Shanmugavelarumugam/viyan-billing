@@ -284,18 +284,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       radius: 32,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
                       backgroundImage:
-                          (shop.profilePhotoPath != null &&
-                              (shop.profilePhotoPath!.startsWith('http') ||
-                                  File(shop.profilePhotoPath!).existsSync()))
-                          ? (shop.profilePhotoPath!.startsWith('http')
-                                    ? NetworkImage(shop.profilePhotoPath!)
-                                    : FileImage(File(shop.profilePhotoPath!)))
+                          ((shop.logoPath ?? shop.profilePhotoPath) != null &&
+                              ((shop.logoPath ?? shop.profilePhotoPath)!.startsWith('http') ||
+                                  File(shop.logoPath ?? shop.profilePhotoPath!).existsSync()))
+                          ? ((shop.logoPath ?? shop.profilePhotoPath)!.startsWith('http')
+                                    ? NetworkImage(shop.logoPath ?? shop.profilePhotoPath!)
+                                    : FileImage(File(shop.logoPath ?? shop.profilePhotoPath!)))
                                 as ImageProvider
                           : null,
                       child:
-                          (shop.profilePhotoPath == null ||
-                              (!shop.profilePhotoPath!.startsWith('http') &&
-                                  !File(shop.profilePhotoPath!).existsSync()))
+                          ((shop.logoPath ?? shop.profilePhotoPath) == null ||
+                              (!(shop.logoPath ?? shop.profilePhotoPath)!.startsWith('http') &&
+                                  !File(shop.logoPath ?? shop.profilePhotoPath!).existsSync()))
                           ? Text(
                               shop.name[0].toUpperCase(),
                               style: const TextStyle(
@@ -343,6 +343,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             ),
                           ],
                         ),
+                        if (shop.phone != null && shop.phone!.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.phone_rounded,
+                                size: 13,
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  shop.phone!,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (shop.gstNumber != null && shop.gstNumber!.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.receipt_rounded,
+                                size: 13,
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'GST: ${shop.gstNumber!}',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 3),
                         Row(
                           children: [

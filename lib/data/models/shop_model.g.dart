@@ -33,13 +33,16 @@ class ShopModelAdapter extends TypeAdapter<ShopModel> {
       subscriptionPlan: fields[13] as String?,
       subscriptionExpiry: fields[14] as DateTime?,
       profilePhotoPath: fields[15] as String?,
+      phone: fields[16] as String?,
+      gstNumber: fields[17] as String?,
+      logoPath: fields[18] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ShopModel obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -71,7 +74,13 @@ class ShopModelAdapter extends TypeAdapter<ShopModel> {
       ..writeByte(14)
       ..write(obj.subscriptionExpiry)
       ..writeByte(15)
-      ..write(obj.profilePhotoPath);
+      ..write(obj.profilePhotoPath)
+      ..writeByte(16)
+      ..write(obj.phone)
+      ..writeByte(17)
+      ..write(obj.gstNumber)
+      ..writeByte(18)
+      ..write(obj.logoPath);
   }
 
   @override

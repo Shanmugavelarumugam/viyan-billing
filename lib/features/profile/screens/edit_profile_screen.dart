@@ -3,8 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../shop_setup/providers/shop_provider.dart';
-import '../../../../data/repositories/storage_repository.dart';
+import '../../../data/models/shop_model.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -18,6 +22,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late TextEditingController _ownerController;
   late TextEditingController _addressController;
   late TextEditingController _upiController;
+  late TextEditingController _phoneController;
+  late TextEditingController _gstController;
   String? _selectedType;
   String? _profilePhotoPath;
   bool _isSaving = false;
@@ -39,8 +45,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _ownerController = TextEditingController(text: shop?.ownerName ?? '');
     _addressController = TextEditingController(text: shop?.address ?? '');
     _upiController = TextEditingController(text: shop?.upiId ?? '');
+    _phoneController = TextEditingController(text: shop?.phone ?? '');
+    _gstController = TextEditingController(text: shop?.gstNumber ?? '');
     _selectedType = shop?.shopType ?? 'Tea Shop';
-    final path = shop?.profilePhotoPath;
+    final path = shop?.logoPath ?? shop?.profilePhotoPath;
     if (path != null && (path.startsWith('http') || File(path).existsSync())) {
       _profilePhotoPath = path;
     } else {
@@ -65,6 +73,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _ownerController.dispose();
     _addressController.dispose();
     _upiController.dispose();
+    _phoneController.dispose();
+    _gstController.dispose();
     super.dispose();
   }
 
@@ -187,6 +197,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               hint: 'e.g., example@upi',
             ),
             const SizedBox(height: 24),
+            _buildEditField(
+              controller: _phoneController,
+              label: 'Phone Number',
+              icon: Icons.phone_rounded,
+              color: primaryColor,
+              hint: 'e.g., +91 9876543210',
+            ),
+            const SizedBox(height: 24),
+            _buildEditField(
+              controller: _gstController,
+              label: 'GST Number',
+              icon: Icons.receipt_rounded,
+              color: primaryColor,
+              hint: 'e.g., 22AAAAA0000A1Z5',
+            ),
+            const SizedBox(height: 24),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -268,22 +294,66 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   setState(() => _isSaving = true);
                   try {
                     String? finalPhotoPath = _profilePhotoPath;
+                    String? finalLogoPath = shop.logoPath;
                     
-                    // If a new local image was picked, upload it to Firebase Storage
+                    // If a new local image was picked, process and copy/save locally
                     if (_profilePhotoPath != null && !_profilePhotoPath!.startsWith('http')) {
                       final file = File(_profilePhotoPath!);
                       if (!await file.exists()) {
                         throw Exception('Selected profile picture file does not exist locally.');
                       }
 
-                      final storageService = ref.read(storageRepositoryProvider);
-                      final url = await storageService.uploadShopLogo(file);
-                      
-                      if (url != null) {
-                        finalPhotoPath = url;
-                      } else {
-                        throw Exception('Failed to upload shop logo to cloud storage.');
+                      // Determine extension
+                      final extension = p.extension(file.path).toLowerCase();
+                      final validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+                      final ext = validExtensions.contains(extension) ? extension : '.jpg';
+
+                      // Select compression format
+                      CompressFormat compressFormat = CompressFormat.jpeg;
+                      if (ext == '.png') {
+                        compressFormat = CompressFormat.png;
+                      } else if (ext == '.webp') {
+                        compressFormat = CompressFormat.webp;
                       }
+
+                      // Compress the image file to optimize storage
+                      debugPrint('⚡ Compressing image locally: ${file.path}');
+                      Uint8List? compressedBytes;
+                      try {
+                        compressedBytes = await FlutterImageCompress.compressWithFile(
+                          file.absolute.path,
+                          minWidth: 800,
+                          minHeight: 800,
+                          quality: 80,
+                          format: compressFormat,
+                        );
+                      } catch (e) {
+                        debugPrint('⚠️ Image compression failed, using original file: $e');
+                      }
+
+                      final uploadBytes = compressedBytes ?? await file.readAsBytes();
+
+                      // Write to App Documents Directory (Permanent Local Storage)
+                      final appDir = await getApplicationDocumentsDirectory();
+                      final newLogoFile = File('${appDir.path}/shop_logo_${DateTime.now().millisecondsSinceEpoch}$ext');
+                      await newLogoFile.writeAsBytes(uploadBytes);
+                      
+                      // Delete old logo to free space
+                      if (shop.logoPath != null) {
+                        try {
+                          final oldFile = File(shop.logoPath!);
+                          if (await oldFile.exists()) {
+                            await oldFile.delete();
+                            debugPrint('🗑️ Cleaned up old local logo: ${oldFile.path}');
+                          }
+                        } catch (e) {
+                          debugPrint('⚠️ Failed to delete old logo file: $e');
+                        }
+                      }
+
+                      finalPhotoPath = newLogoFile.path;
+                      finalLogoPath = newLogoFile.path;
+                      debugPrint('💾 Logo saved locally at: $finalLogoPath');
                     }
 
                     final updatedShop = shop.copyWith(
@@ -291,8 +361,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       ownerName: _ownerController.text.trim(),
                       address: _addressController.text.trim(),
                       upiId: _upiController.text.trim(),
+                      phone: _phoneController.text.trim(),
+                      gstNumber: _gstController.text.trim(),
                       shopType: _selectedType,
                       profilePhotoPath: finalPhotoPath,
+                      logoPath: finalLogoPath,
                     );
 
                     await ref.read(shopProvider.notifier).saveShop(updatedShop);

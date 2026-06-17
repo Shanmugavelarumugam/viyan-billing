@@ -52,6 +52,15 @@ class ShopModel extends HiveObject {
   @HiveField(15)
   final String? profilePhotoPath;
 
+  @HiveField(16)
+  final String? phone;
+
+  @HiveField(17)
+  final String? gstNumber;
+
+  @HiveField(18)
+  final String? logoPath;
+
   ShopModel({
     required this.name,
     this.upiId,
@@ -69,6 +78,9 @@ class ShopModel extends HiveObject {
     String? subscriptionPlan,
     this.subscriptionExpiry,
     this.profilePhotoPath,
+    this.phone,
+    this.gstNumber,
+    this.logoPath,
   })  : language = language ?? 'ta',
         currency = currency ?? '₹',
         tokenStartNumber = tokenStartNumber ?? 1,
@@ -93,6 +105,9 @@ class ShopModel extends HiveObject {
     String? subscriptionPlan,
     DateTime? subscriptionExpiry,
     String? profilePhotoPath,
+    String? phone,
+    String? gstNumber,
+    String? logoPath,
   }) {
     return ShopModel(
       name: name ?? this.name,
@@ -111,6 +126,9 @@ class ShopModel extends HiveObject {
       subscriptionPlan: subscriptionPlan ?? this.subscriptionPlan,
       subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
       profilePhotoPath: profilePhotoPath ?? this.profilePhotoPath,
+      phone: phone ?? this.phone,
+      gstNumber: gstNumber ?? this.gstNumber,
+      logoPath: logoPath ?? this.logoPath,
     );
   }
 }
